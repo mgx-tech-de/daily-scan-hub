@@ -73,7 +73,7 @@ function Index() {
       <div className="mx-auto flex max-w-3xl flex-col px-6 py-8">
         <header className="flex items-center justify-between">
           <span className="font-display text-lg font-semibold tracking-tight">
-            Chrono<span className="text-primary">Desk</span>
+            {data?.orgName ?? "ChronoDesk"}
           </span>
           <Button asChild variant="ghost" size="sm" className="text-xs">
             <Link to="/auth">Sign in</Link>

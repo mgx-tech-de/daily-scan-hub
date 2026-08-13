@@ -38,11 +38,18 @@ export const claimFirstAdmin = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
     z
-      .object({ first_name: z.string().default("Admin"), last_name: z.string().default("") })
+      .object({
+        first_name: z.string().default("Admin"),
+        last_name: z.string().default(""),
+        setup_code: z.string().default(""),
+      })
       .parse(input ?? {}),
   )
   .handler(async ({ data, context }) => {
-    const { admin, audit } = await loadServer();
+    const { admin, audit, ORG_NAME_UNLOCK_CODE } = await loadServer();
+    if (data.setup_code !== ORG_NAME_UNLOCK_CODE) {
+      throw new Error("Invalid setup password.");
+    }
     const { count } = await admin
       .from("user_roles")
       .select("id", { count: "exact", head: true })
@@ -115,11 +122,19 @@ export const getPublicKiosk = createServerFn({ method: "GET" }).handler(async ()
   return {
     payload,
     workDate,
+    orgName: (settings as { org_name?: string }).org_name ?? "ChronoDesk",
     rotateSeconds: ROTATE_SECONDS,
     timezone: settings.timezone,
     windowFrom: settings.qr_open,
     windowTo: settings.daily_cutoff,
   };
+});
+
+/** Public: the organisation name, so unauthenticated pages can brand themselves. */
+export const getOrgName = createServerFn({ method: "GET" }).handler(async () => {
+  const { admin, getSettings } = await loadServer();
+  const settings = await getSettings(admin);
+  return { orgName: (settings as { org_name?: string }).org_name ?? "ChronoDesk" };
 });
 
 /** Public kiosk feed: the last few scans of today, for the wall display. */

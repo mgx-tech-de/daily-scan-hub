@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
@@ -8,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
-import { claimFirstAdmin } from "@/lib/chrono.functions";
+import { claimFirstAdmin, getOrgName } from "@/lib/chrono.functions";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -29,6 +30,8 @@ function AuthPage() {
   const navigate = useNavigate();
   const claim = useServerFn(claimFirstAdmin);
   const [busy, setBusy] = useState(false);
+  const { data: org } = useQuery({ queryKey: ["org-name"], queryFn: () => getOrgName() });
+  const orgName = org?.orgName ?? "ChronoDesk";
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -71,6 +74,7 @@ function AuthPage() {
         data: {
           first_name: String(form.get("first_name") || "Admin"),
           last_name: String(form.get("last_name") || ""),
+          setup_code: String(form.get("setup_code") || ""),
         },
       });
       toast.success("Administrator account ready.");
@@ -85,9 +89,7 @@ function AuthPage() {
   return (
     <main className="hero-surface flex min-h-screen items-center justify-center px-4 py-12">
       <div className="panel w-full max-w-md p-8">
-        <h1 className="font-display text-2xl font-semibold">
-          Chrono<span className="text-primary">Desk</span>
-        </h1>
+        <h1 className="font-display text-2xl font-semibold">{orgName}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Accounts are issued by HR. Use the credentials you were given.
         </p>
@@ -122,9 +124,14 @@ function AuthPage() {
 
           <TabsContent value="setup">
             <p className="mt-4 text-sm text-muted-foreground">
-              Create the very first administrator. This only works while no administrator exists.
+              Create the very first administrator. This requires the setup password and only works
+              while no administrator exists.
             </p>
             <form onSubmit={setupAdmin} className="mt-4 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="setup_code">Setup password</Label>
+                <Input id="setup_code" name="setup_code" type="password" required />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label htmlFor="first_name">First name</Label>
