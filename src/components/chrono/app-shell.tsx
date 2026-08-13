@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { LogOut } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 
@@ -14,11 +14,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { data: profile } = useProfile(perms.userId);
   const { data: settings } = useSettings();
   const canOpenAdmin = perms.can("admin.access");
+  const pathname = useLocation({ select: (l) => l.pathname });
   const orgName = settings?.org_name ?? "ChronoDesk";
 
   useEffect(() => {
-    document.title = document.title.replace(/ChronoDesk/g, orgName);
-  }, [orgName]);
+    const id = window.setTimeout(() => {
+      document.title = document.title.replace(/ChronoDesk/g, orgName);
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [orgName, pathname]);
 
   async function signOut() {
     await supabase.auth.signOut();
