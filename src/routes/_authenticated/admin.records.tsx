@@ -66,14 +66,24 @@ function RecordsPage() {
 
   const { data } = useQuery({
     queryKey: ["records", from, to],
+    refetchInterval: 10000,
     queryFn: async () => {
-      const { data } = await supabase
+      const { data: days } = await supabase
         .from("attendance_days")
-        .select("*, profiles(first_name,last_name,employee_code)")
+        .select("*")
         .gte("work_date", from)
         .lte("work_date", to)
         .order("work_date", { ascending: false });
-      return (data ?? []) as unknown as Row[];
+      const list = days ?? [];
+      const ids = [...new Set(list.map((d) => d.user_id))];
+      const { data: profiles } = ids.length
+        ? await supabase
+            .from("profiles")
+            .select("id,first_name,last_name,employee_code")
+            .in("id", ids)
+        : { data: [] };
+      const byId = new Map((profiles ?? []).map((p) => [p.id, p]));
+      return list.map((d) => ({ ...d, profiles: byId.get(d.user_id) ?? null })) as unknown as Row[];
     },
   });
 
