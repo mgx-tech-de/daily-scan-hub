@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
-import { claimFirstAdmin, getOrgName } from "@/lib/chrono.functions";
+import { adminExists, claimFirstAdmin, getOrgName } from "@/lib/chrono.functions";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -32,6 +32,11 @@ function AuthPage() {
   const [busy, setBusy] = useState(false);
   const { data: org } = useQuery({ queryKey: ["org-name"], queryFn: () => getOrgName() });
   const orgName = org?.orgName ?? "ChronoDesk";
+  const { data: bootstrap } = useQuery({
+    queryKey: ["admin-exists"],
+    queryFn: () => adminExists(),
+  });
+  const setupDone = bootstrap?.exists ?? false;
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -63,6 +68,10 @@ function AuthPage() {
     const setupCode = String(form.get("setup_code") || "");
     if (setupCode !== "Aqw1234567$$") {
       toast.error("Invalid setup password.");
+      return;
+    }
+    if (setupDone) {
+      toast.error("An administrator already exists. Please sign in instead.");
       return;
     }
     setBusy(true);
@@ -133,6 +142,13 @@ function AuthPage() {
           </TabsContent>
 
           <TabsContent value="setup">
+            {setupDone ? (
+              <p className="mt-4 text-sm text-muted-foreground">
+                Setup is already complete — an administrator exists for {orgName}. Sign in with your
+                admin account, and ask an admin to create any additional accounts.
+              </p>
+            ) : (
+            <>
             <p className="mt-4 text-sm text-muted-foreground">
               Create the very first administrator. This requires the setup password and only works
               while no administrator exists.
@@ -164,6 +180,8 @@ function AuthPage() {
                 {busy ? "Setting up…" : "Create administrator"}
               </Button>
             </form>
+            </>
+            )}
           </TabsContent>
         </Tabs>
       </div>
