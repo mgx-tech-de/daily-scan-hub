@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { clampCheckIn, parseHm, zoned } from "./attendance-rules";
+import { can, type Permission } from "./permissions";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 async function loadServer() {
@@ -12,14 +13,28 @@ async function loadServer() {
   return { admin: supabaseAdmin, ...helpers };
 }
 
-async function assertAdmin(context: { supabase: any; userId: string }) {
+async function rolesOf(context: { supabase: any; userId: string }) {
   const { data } = await context.supabase
     .from("user_roles")
     .select("role")
-    .eq("user_id", context.userId)
-    .eq("role", "admin")
-    .maybeSingle();
-  if (!data) throw new Error("Forbidden: admin access required");
+    .eq("user_id", context.userId);
+  return ((data ?? []) as Array<{ role: string }>).map((r) => r.role);
+}
+
+/** Server-side permission gate — the browser UI is only a convenience layer. */
+async function requirePermission(
+  context: { supabase: any; userId: string },
+  permission: Permission,
+) {
+  const roles = await rolesOf(context);
+  if (!can(roles, permission)) {
+    throw new Error("Forbidden: you do not have permission to perform this action.");
+  }
+  return roles;
+}
+
+async function assertAdmin(context: { supabase: any; userId: string }) {
+  await requirePermission(context, "settings.manage");
 }
 
 /** Bootstrap: the first signed-in user may claim the admin role. */
