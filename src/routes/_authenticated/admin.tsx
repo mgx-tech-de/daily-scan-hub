@@ -1,26 +1,31 @@
 import { Link, Outlet, createFileRoute } from "@tanstack/react-router";
 
 import { AppShell } from "@/components/chrono/app-shell";
-import { useRole, useUser } from "@/hooks/use-chrono";
+import { usePermissions } from "@/hooks/use-chrono";
+import type { Permission } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminLayout,
 });
 
 const TABS = [
-  { to: "/admin", label: "Live board", exact: true },
-  { to: "/admin/employees", label: "Employees" },
-  { to: "/admin/records", label: "Records" },
-  { to: "/admin/qr", label: "Daily QR" },
-  { to: "/admin/settings", label: "Settings" },
-  { to: "/admin/audit", label: "Audit log" },
-] as const;
+  { to: "/admin", label: "Live board", exact: true, permission: "board.view" },
+  { to: "/admin/employees", label: "Employees", permission: "employees.view" },
+  { to: "/admin/records", label: "Records", permission: "records.view" },
+  { to: "/admin/qr", label: "Daily QR", permission: "qr.view" },
+  { to: "/admin/settings", label: "Settings", permission: "settings.manage" },
+  { to: "/admin/audit", label: "Audit log", permission: "audit.view" },
+] as const satisfies ReadonlyArray<{
+  to: string;
+  label: string;
+  exact?: true;
+  permission: Permission;
+}>;
 
 function AdminLayout() {
-  const { user, loading } = useUser();
-  const { data: roles, isLoading } = useRole(user?.id);
+  const perms = usePermissions();
 
-  if (loading || isLoading) {
+  if (perms.loading) {
     return (
       <AppShell>
         <p className="text-sm text-muted-foreground">Checking permissions…</p>
@@ -28,13 +33,13 @@ function AdminLayout() {
     );
   }
 
-  if (!roles?.includes("admin")) {
+  if (!perms.can("admin.access")) {
     return (
       <AppShell>
         <div className="panel p-6">
-          <h1 className="font-display text-lg font-semibold">Admins only</h1>
+          <h1 className="font-display text-lg font-semibold">Restricted area</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Your account does not have administrator access.
+            Your account does not have administrator or manager access.
           </p>
         </div>
       </AppShell>
@@ -44,7 +49,7 @@ function AdminLayout() {
   return (
     <AppShell>
       <nav className="mb-6 flex flex-wrap gap-1 rounded-xl border border-border bg-card p-1">
-        {TABS.map((tab) => (
+        {TABS.filter((tab) => perms.can(tab.permission)).map((tab) => (
           <Link
             key={tab.to}
             to={tab.to}
