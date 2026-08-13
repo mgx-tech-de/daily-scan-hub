@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { LogOut } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { usePermissions, useProfile, useSettings, useUser } from "@/hooks/use-chrono";
@@ -14,6 +14,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { data: profile } = useProfile(perms.userId);
   const { data: settings } = useSettings();
   const canOpenAdmin = perms.can("admin.access");
+  const orgName = settings?.org_name ?? "ChronoDesk";
+
+  useEffect(() => {
+    document.title = document.title.replace(/ChronoDesk/g, orgName);
+  }, [orgName]);
 
   async function signOut() {
     await supabase.auth.signOut();
@@ -25,7 +30,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-20 border-b border-border bg-background/85 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
           <Link to="/home" className="font-display text-base font-semibold">
-            {settings?.org_name ?? "ChronoDesk"}
+            {orgName}
           </Link>
           <nav className="flex items-center gap-1 text-sm">
             <Button asChild variant="ghost" size="sm">
