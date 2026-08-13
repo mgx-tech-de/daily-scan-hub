@@ -477,7 +477,7 @@ export const saveSettings = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requirePermission(context as never, "settings.manage");
-    const { admin, audit } = await loadServer();
+    const { admin, audit, ORG_NAME_UNLOCK_CODE } = await loadServer();
     const { org_unlock_code, ...values } = data;
     const { data: current } = await admin
       .from("settings")
