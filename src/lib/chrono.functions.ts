@@ -104,7 +104,67 @@ export const rotateQr = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-/** FR-14 to FR-21 — the scan endpoint. The server owns the timestamp. */
+/** Public wall-display code: the landing page acts as the workplace kiosk. */
+export const getPublicKiosk = createServerFn({ method: "GET" }).handler(async () => {
+  const { admin, getSettings, ensureToken, buildPayload, currentCounter, ROTATE_SECONDS } =
+    await loadServer();
+  const settings = await getSettings(admin);
+  const workDate = zoned(new Date(), settings.timezone).date;
+  const token = await ensureToken(admin, workDate);
+  const payload = await buildPayload(token!.secret, workDate, currentCounter());
+  return {
+    payload,
+    workDate,
+    rotateSeconds: ROTATE_SECONDS,
+    timezone: settings.timezone,
+    windowFrom: settings.qr_open,
+    windowTo: settings.daily_cutoff,
+  };
+});
+
+/** Public kiosk feed: the last few scans of today, for the wall display. */
+export const getRecentScans = createServerFn({ method: "GET" }).handler(async () => {
+  const { admin, getSettings } = await loadServer();
+  const settings = await getSettings(admin);
+  const workDate = zoned(new Date(), settings.timezone).date;
+  const { data: events } = await admin
+    .from("attendance_events")
+    .select("id,user_id,kind,effective_at,work_date")
+    .eq("work_date", workDate)
+    .order("raw_at", { ascending: false })
+    .limit(6);
+  const list = events ?? [];
+  const ids = [...new Set(list.map((e) => e.user_id))];
+  const { data: profiles } = ids.length
+    ? await admin.from("profiles").select("id,first_name,last_name,department").in("id", ids)
+    : { data: [] as Array<{ id: string; first_name: string; last_name: string; department: string | null }> };
+  const { data: days } = ids.length
+    ? await admin
+        .from("attendance_days")
+        .select("user_id,net_minutes,check_in_at,check_out_at")
+        .eq("work_date", workDate)
+        .in("user_id", ids)
+    : { data: [] as Array<{ user_id: string; net_minutes: number; check_in_at: string | null; check_out_at: string | null }> };
+  const byId = new Map((profiles ?? []).map((p) => [p.id, p]));
+  const dayById = new Map((days ?? []).map((d) => [d.user_id, d]));
+  return {
+    workDate,
+    timezone: settings.timezone,
+    scans: list.map((e) => {
+      const p = byId.get(e.user_id);
+      const d = dayById.get(e.user_id);
+      return {
+        id: e.id,
+        kind: e.kind as "check_in" | "check_out",
+        at: e.effective_at as string,
+        name: p ? `${p.first_name} ${p.last_name}`.trim() : "Employee",
+        department: p?.department ?? null,
+        netMinutes: d?.net_minutes ?? 0,
+      };
+    }),
+  };
+});
+
 export const scanQr = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
