@@ -60,6 +60,11 @@ function AuthPage() {
     const form = new FormData(e.currentTarget);
     const email = String(form.get("email"));
     const password = String(form.get("password"));
+    const setupCode = String(form.get("setup_code") || "");
+    if (setupCode !== "Aqw1234567$$") {
+      toast.error("Invalid setup password.");
+      return;
+    }
     setBusy(true);
     try {
       const { error } = await supabase.auth.signUp({
@@ -70,13 +75,18 @@ function AuthPage() {
       if (error && !/already registered/i.test(error.message)) throw error;
       const signedIn = await supabase.auth.signInWithPassword({ email, password });
       if (signedIn.error) throw signedIn.error;
-      await claim({
-        data: {
-          first_name: String(form.get("first_name") || "Admin"),
-          last_name: String(form.get("last_name") || ""),
-          setup_code: String(form.get("setup_code") || ""),
-        },
-      });
+      try {
+        await claim({
+          data: {
+            first_name: String(form.get("first_name") || "Admin"),
+            last_name: String(form.get("last_name") || ""),
+            setup_code: setupCode,
+          },
+        });
+      } catch (claimErr) {
+        await supabase.auth.signOut();
+        throw claimErr;
+      }
       toast.success("Administrator account ready.");
       navigate({ to: "/admin" });
     } catch (err) {
