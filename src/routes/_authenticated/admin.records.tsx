@@ -16,7 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useSettings } from "@/hooks/use-chrono";
+import { usePermissions, useSettings } from "@/hooks/use-chrono";
 import { supabase } from "@/integrations/supabase/client";
 import { decimalHours, formatMinutes, zoned } from "@/lib/attendance-rules";
 import { manualCorrection } from "@/lib/chrono.functions";
@@ -77,6 +77,7 @@ function RecordsPage() {
     },
   });
 
+  const perms = usePermissions();
   const rows = data ?? [];
 
   const fix = useMutation({
@@ -148,7 +149,12 @@ function RecordsPage() {
           <Label htmlFor="to">To</Label>
           <Input id="to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </div>
-        <Button variant="outline" className="ml-auto" onClick={exportCsv} disabled={!rows.length}>
+        <Button
+          variant="outline"
+          className="ml-auto"
+          onClick={exportCsv}
+          disabled={!rows.length || !perms.can("records.export")}
+        >
           <Download className="mr-2 size-4" /> Export CSV
         </Button>
       </div>
@@ -190,9 +196,13 @@ function RecordsPage() {
                 <TableCell className="tabular">{r.late_minutes}m</TableCell>
                 <TableCell className="tabular">{formatMinutes(r.overtime_minutes)}</TableCell>
                 <TableCell className="text-right">
-                  <Button size="sm" variant="outline" onClick={() => setEditing(r)}>
-                    <PencilLine className="size-4" />
-                  </Button>
+                  {perms.can("records.correct") ? (
+                    <Button size="sm" variant="outline" onClick={() => setEditing(r)}>
+                      <PencilLine className="size-4" />
+                    </Button>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">—</span>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

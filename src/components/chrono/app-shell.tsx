@@ -3,12 +3,13 @@ import { LogOut } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
-import { usePermissions, useProfile } from "@/hooks/use-chrono";
+import { usePermissions, useProfile, useUser } from "@/hooks/use-chrono";
 import { ROLE_LABELS } from "@/lib/permissions";
 import { supabase } from "@/integrations/supabase/client";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
+  const { user } = useUser();
   const perms = usePermissions();
   const { data: profile } = useProfile(perms.userId);
   const canOpenAdmin = perms.can("admin.access");
@@ -37,7 +38,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </nav>
           <div className="ml-auto flex items-center gap-3">
             <span className="hidden text-sm text-muted-foreground sm:inline">
-              {profile ? `${profile.first_name} ${profile.last_name}` : ""}
+              {profile ? `${profile.first_name} ${profile.last_name}` : (user?.email ?? "")}
               {perms.role ? ` · ${ROLE_LABELS[perms.role]}` : ""}
             </span>
             <Button variant="outline" size="sm" onClick={signOut} aria-label="Sign out">
