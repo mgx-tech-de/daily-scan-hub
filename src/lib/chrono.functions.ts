@@ -117,7 +117,6 @@ export const getPublicKiosk = createServerFn({ method: "GET" }).handler(async ()
     workDate,
     rotateSeconds: ROTATE_SECONDS,
     timezone: settings.timezone,
-    orgName: settings.org_name,
     windowFrom: settings.qr_open,
     windowTo: settings.daily_cutoff,
   };
@@ -166,24 +165,6 @@ export const getRecentScans = createServerFn({ method: "GET" }).handler(async ()
   };
 });
 
-const _rotateQrLegacy = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    await requirePermission(context as never, "qr.rotate");
-    const { admin, getSettings, rotateToken, audit } = await loadServer();
-    const settings = await getSettings(admin);
-    const workDate = zoned(new Date(), settings.timezone).date;
-    await rotateToken(admin, workDate);
-    await audit(admin, {
-      actor_id: context.userId,
-      action: "rotate_qr",
-      entity: "qr_tokens",
-      entity_id: workDate,
-    });
-    return { ok: true };
-  });
-
-/** FR-14 to FR-21 — the scan endpoint. The server owns the timestamp. */
 export const scanQr = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
