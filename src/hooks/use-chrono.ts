@@ -4,6 +4,7 @@ import type { User } from "@supabase/supabase-js";
 
 import { supabase } from "@/integrations/supabase/client";
 import { DEFAULT_SETTINGS, type AttendanceSettings } from "@/lib/attendance-rules";
+import { can, highestRole, type AppRole, type Permission } from "@/lib/permissions";
 
 export function useUser() {
   const [user, setUser] = useState<User | null>(null);
@@ -64,4 +65,20 @@ export function useSettings() {
       };
     },
   });
+}
+
+/** Role-derived permissions for the signed-in user. */
+export function usePermissions() {
+  const { user, loading } = useUser();
+  const { data: roles, isLoading } = useRole(user?.id);
+  const list = roles ?? [];
+  return {
+    userId: user?.id,
+    roles: list as AppRole[],
+    role: highestRole(list),
+    isAdmin: list.includes("admin"),
+    isManager: list.includes("manager"),
+    can: (permission: Permission) => can(list, permission),
+    loading: loading || isLoading,
+  };
 }

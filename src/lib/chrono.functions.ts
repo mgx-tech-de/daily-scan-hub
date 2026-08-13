@@ -33,10 +33,6 @@ async function requirePermission(
   return roles;
 }
 
-async function assertAdmin(context: { supabase: any; userId: string }) {
-  await requirePermission(context, "settings.manage");
-}
-
 /** Bootstrap: the first signed-in user may claim the admin role. */
 export const claimFirstAdmin = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
