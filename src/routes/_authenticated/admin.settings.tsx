@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
+import { RequirePermission } from "@/components/chrono/require-permission";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,8 +23,16 @@ export const Route = createFileRoute("/_authenticated/admin/settings")({
       { property: "og:description", content: "Shift rules that drive every calculation." },
     ],
   }),
-  component: SettingsPage,
+  component: SettingsGuarded,
 });
+
+function SettingsGuarded() {
+  return (
+    <RequirePermission permission="settings.manage">
+      <SettingsPage />
+    </RequirePermission>
+  );
+}
 
 function SettingsPage() {
   const { data: settings } = useSettings();

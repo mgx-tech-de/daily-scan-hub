@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { clampCheckIn, parseHm, zoned } from "./attendance-rules";
+import { can, type Permission } from "./permissions";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 async function loadServer() {
@@ -12,14 +13,24 @@ async function loadServer() {
   return { admin: supabaseAdmin, ...helpers };
 }
 
-async function assertAdmin(context: { supabase: any; userId: string }) {
+async function rolesOf(context: { supabase: any; userId: string }) {
   const { data } = await context.supabase
     .from("user_roles")
     .select("role")
-    .eq("user_id", context.userId)
-    .eq("role", "admin")
-    .maybeSingle();
-  if (!data) throw new Error("Forbidden: admin access required");
+    .eq("user_id", context.userId);
+  return ((data ?? []) as Array<{ role: string }>).map((r) => r.role);
+}
+
+/** Server-side permission gate — the browser UI is only a convenience layer. */
+async function requirePermission(
+  context: { supabase: any; userId: string },
+  permission: Permission,
+) {
+  const roles = await rolesOf(context);
+  if (!can(roles, permission)) {
+    throw new Error("Forbidden: you do not have permission to perform this action.");
+  }
+  return roles;
 }
 
 /** Bootstrap: the first signed-in user may claim the admin role. */
@@ -58,7 +69,7 @@ export const claimFirstAdmin = createServerFn({ method: "POST" })
 export const getKiosk = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await assertAdmin(context as never);
+    await requirePermission(context as never, "qr.view");
     const { admin, getSettings, ensureToken, buildPayload, currentCounter, ROTATE_SECONDS } =
       await loadServer();
     const settings = await getSettings(admin);
@@ -79,7 +90,7 @@ export const getKiosk = createServerFn({ method: "POST" })
 export const rotateQr = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await assertAdmin(context as never);
+    await requirePermission(context as never, "qr.rotate");
     const { admin, getSettings, rotateToken, audit } = await loadServer();
     const settings = await getSettings(admin);
     const workDate = zoned(new Date(), settings.timezone).date;
@@ -210,12 +221,12 @@ export const createEmployee = createServerFn({ method: "POST" })
         department: z.string().optional(),
         position: z.string().optional(),
         hire_date: z.string().optional(),
-        role: z.enum(["employee", "admin"]).default("employee"),
+        role: z.enum(["employee", "manager", "admin"]).default("employee"),
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertAdmin(context as never);
+    await requirePermission(context as never, "employees.manage");
     const { admin, audit } = await loadServer();
     const { data: created, error } = await admin.auth.admin.createUser({
       email: data.email,
@@ -268,7 +279,7 @@ export const updateEmployee = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertAdmin(context as never);
+    await requirePermission(context as never, "employees.manage");
     const { admin, audit } = await loadServer();
     const { id, ...patch } = data;
     const clean = Object.fromEntries(
@@ -298,7 +309,7 @@ export const setEmployeePassword = createServerFn({ method: "POST" })
     z.object({ id: z.string().uuid(), password: z.string().min(10) }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertAdmin(context as never);
+    await requirePermission(context as never, "employees.reset_password");
     const { admin, audit } = await loadServer();
     const { error } = await admin.auth.admin.updateUserById(data.id, {
       password: data.password,
@@ -328,7 +339,7 @@ export const manualCorrection = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertAdmin(context as never);
+    await requirePermission(context as never, "records.correct");
     const { admin, getSettings, recomputeDay, audit } = await loadServer();
     const { instantAt } = await import("./attendance-rules");
     const settings = await getSettings(admin);
@@ -404,7 +415,7 @@ export const saveSettings = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertAdmin(context as never);
+    await requirePermission(context as never, "settings.manage");
     const { admin, audit } = await loadServer();
     const { error } = await admin
       .from("settings")
@@ -417,6 +428,38 @@ export const saveSettings = createServerFn({ method: "POST" })
       entity: "settings",
       entity_id: "1",
       payload: data,
+    });
+    return { ok: true };
+  });
+
+/** Change a user's role. Admin-only (roles.manage). */
+export const setEmployeeRole = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        role: z.enum(["employee", "manager", "admin"]),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requirePermission(context as never, "roles.manage");
+    const { admin, audit } = await loadServer();
+    if (data.id === context.userId && data.role !== "admin") {
+      throw new Error("You cannot remove your own administrator role.");
+    }
+    await admin.from("user_roles").delete().eq("user_id", data.id);
+    const { error } = await admin
+      .from("user_roles")
+      .insert({ user_id: data.id, role: data.role });
+    if (error) throw new Error(error.message);
+    await audit(admin, {
+      actor_id: context.userId,
+      action: "set_role",
+      entity: "user_roles",
+      entity_id: data.id,
+      payload: { role: data.role },
     });
     return { ok: true };
   });
