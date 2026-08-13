@@ -104,11 +104,12 @@ function QrPage() {
           Each code is signed for today only and expires within seconds, so screenshots cannot be
           reused.
         </p>
-        <Button
-          className="w-full"
-          variant="outline"
-          disabled={isFetching}
-          onClick={async () => {
+        {perms.can("qr.rotate") ? (
+          <Button
+            className="w-full"
+            variant="outline"
+            disabled={isFetching}
+            onClick={async () => {
             try {
               await rotate({ data: undefined });
               await refetch();
@@ -116,10 +117,15 @@ function QrPage() {
             } catch (e) {
               toast.error(e instanceof Error ? e.message : "Could not rotate");
             }
-          }}
-        >
-          <RefreshCw className="mr-2 size-4" /> Rotate today's secret
-        </Button>
+            }}
+          >
+            <RefreshCw className="mr-2 size-4" /> Rotate today&apos;s secret
+          </Button>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Only administrators can rotate today&apos;s secret.
+          </p>
+        )}
       </aside>
     </div>
   );
