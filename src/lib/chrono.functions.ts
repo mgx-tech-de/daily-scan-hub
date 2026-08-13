@@ -137,6 +137,16 @@ export const getOrgName = createServerFn({ method: "GET" }).handler(async () => 
   return { orgName: (settings as { org_name?: string }).org_name ?? "ChronoDesk" };
 });
 
+/** Public: whether the first-run setup is still available. */
+export const adminExists = createServerFn({ method: "GET" }).handler(async () => {
+  const { admin } = await loadServer();
+  const { count } = await admin
+    .from("user_roles")
+    .select("id", { count: "exact", head: true })
+    .eq("role", "admin");
+  return { exists: (count ?? 0) > 0 };
+});
+
 /** Public kiosk feed: the last few scans of today, for the wall display. */
 export const getRecentScans = createServerFn({ method: "GET" }).handler(async () => {
   const { admin, getSettings } = await loadServer();
