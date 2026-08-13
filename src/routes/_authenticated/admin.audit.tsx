@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 
+import { RequirePermission } from "@/components/chrono/require-permission";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -13,8 +14,16 @@ export const Route = createFileRoute("/_authenticated/admin/audit")({
       { property: "og:description", content: "Traceable history of attendance changes." },
     ],
   }),
-  component: AuditPage,
+  component: AuditGuarded,
 });
+
+function AuditGuarded() {
+  return (
+    <RequirePermission permission="audit.view">
+      <AuditPage />
+    </RequirePermission>
+  );
+}
 
 function AuditPage() {
   const { data } = useQuery({

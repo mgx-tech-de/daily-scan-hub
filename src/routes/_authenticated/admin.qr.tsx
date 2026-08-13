@@ -6,7 +6,9 @@ import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { RequirePermission } from "@/components/chrono/require-permission";
 import { Button } from "@/components/ui/button";
+import { usePermissions } from "@/hooks/use-chrono";
 import { getKiosk, rotateQr } from "@/lib/chrono.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/qr")({
@@ -21,10 +23,19 @@ export const Route = createFileRoute("/_authenticated/admin/qr")({
       { property: "og:description", content: "Signed, rotating attendance code for the workplace." },
     ],
   }),
-  component: QrPage,
+  component: QrGuarded,
 });
 
+function QrGuarded() {
+  return (
+    <RequirePermission permission="qr.view">
+      <QrPage />
+    </RequirePermission>
+  );
+}
+
 function QrPage() {
+  const perms = usePermissions();
   const kiosk = useServerFn(getKiosk);
   const rotate = useServerFn(rotateQr);
   const [png, setPng] = useState<string | null>(null);
