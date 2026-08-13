@@ -59,42 +59,62 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-surface-raised: var(--surface-raised);
+  --font-display: var(--font-display);
+  --font-sans: var(--font-body);
+  --shadow-panel: var(--shadow-panel);
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
+  --radius: 0.5rem;
+  /* ChronoDesk — graphite workshop palette with amber signal accent */
+  --background: oklch(0.18 0.014 260);
+  --foreground: oklch(0.95 0.006 250);
+  --card: oklch(0.225 0.016 260);
+  --card-foreground: oklch(0.95 0.006 250);
+  --popover: oklch(0.225 0.016 260);
+  --popover-foreground: oklch(0.95 0.006 250);
+  --primary: oklch(0.79 0.15 78);
+  --primary-foreground: oklch(0.2 0.03 70);
+  --secondary: oklch(0.28 0.018 260);
+  --secondary-foreground: oklch(0.95 0.006 250);
+  --muted: oklch(0.27 0.016 260);
+  --muted-foreground: oklch(0.7 0.012 255);
+  --accent: oklch(0.72 0.13 165);
+  --accent-foreground: oklch(0.18 0.03 165);
+  --destructive: oklch(0.62 0.2 25);
+  --destructive-foreground: oklch(0.97 0.01 25);
+  --border: oklch(0.32 0.016 260);
+  --input: oklch(0.32 0.016 260);
+  --ring: oklch(0.79 0.15 78);
+  --success: oklch(0.72 0.13 165);
+  --success-foreground: oklch(0.16 0.03 165);
+  --warning: oklch(0.79 0.15 78);
+  --surface-raised: oklch(0.26 0.017 260);
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --shadow-panel: 0 24px 60px -30px oklch(0.05 0.02 260 / 0.9);
+  --gradient-hero: linear-gradient(
+    140deg,
+    oklch(0.24 0.03 265) 0%,
+    oklch(0.19 0.015 260) 55%,
+    oklch(0.22 0.05 78 / 0.5) 100%
+  );
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.984 0.003 247.858);
-  --sidebar-foreground: oklch(0.129 0.042 264.695);
-  --sidebar-primary: oklch(0.208 0.042 265.755);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.968 0.007 247.896);
-  --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
-  --sidebar-border: oklch(0.929 0.013 255.508);
-  --sidebar-ring: oklch(0.704 0.04 256.788);
+  --sidebar: oklch(0.21 0.015 260);
+  --sidebar-foreground: oklch(0.95 0.006 250);
+  --sidebar-primary: oklch(0.79 0.15 78);
+  --sidebar-primary-foreground: oklch(0.2 0.03 70);
+  --sidebar-accent: oklch(0.28 0.018 260);
+  --sidebar-accent-foreground: oklch(0.95 0.006 250);
+  --sidebar-border: oklch(0.32 0.016 260);
+  --sidebar-ring: oklch(0.79 0.15 78);
 }
 
 .dark {
@@ -140,5 +160,30 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
   }
+
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+}
+
+@utility panel {
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-panel);
+}
+
+@utility hero-surface {
+  background-image: var(--gradient-hero);
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
 }
