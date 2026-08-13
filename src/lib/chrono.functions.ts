@@ -471,23 +471,34 @@ export const saveSettings = createServerFn({ method: "POST" })
         break_deduction_minutes: z.number().int().min(0),
         count_unapproved_overtime: z.boolean(),
         min_dwell_seconds: z.number().int().min(0),
+        org_unlock_code: z.string().optional(),
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     await requirePermission(context as never, "settings.manage");
     const { admin, audit } = await loadServer();
+    const { org_unlock_code, ...values } = data;
+    const { data: current } = await admin
+      .from("settings")
+      .select("org_name")
+      .eq("id", 1)
+      .maybeSingle();
+    if (current && current.org_name !== values.org_name) {
+      if (org_unlock_code !== ORG_NAME_UNLOCK_CODE) {
+        throw new Error("Invalid unlock code — the organisation name was not changed.");
+      }
+    }
     const { error } = await admin
       .from("settings")
-      .update({ ...data, updated_at: new Date().toISOString() })
-      .eq("id", 1);
+      .upsert({ id: 1, ...values, updated_at: new Date().toISOString() }, { onConflict: "id" });
     if (error) throw new Error(error.message);
     await audit(admin, {
       actor_id: context.userId,
       action: "update_settings",
       entity: "settings",
       entity_id: "1",
-      payload: data,
+      payload: values,
     });
     return { ok: true };
   });
