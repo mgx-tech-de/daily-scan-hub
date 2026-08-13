@@ -3,7 +3,7 @@ import { LogOut } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
-import { usePermissions, useProfile, useUser } from "@/hooks/use-chrono";
+import { usePermissions, useProfile, useSettings, useUser } from "@/hooks/use-chrono";
 import { ROLE_LABELS } from "@/lib/permissions";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -12,6 +12,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { user } = useUser();
   const perms = usePermissions();
   const { data: profile } = useProfile(perms.userId);
+  const { data: settings } = useSettings();
   const canOpenAdmin = perms.can("admin.access");
 
   async function signOut() {
@@ -24,7 +25,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-20 border-b border-border bg-background/85 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
           <Link to="/home" className="font-display text-base font-semibold">
-            Chrono<span className="text-primary">Desk</span>
+            {settings?.org_name ?? "ChronoDesk"}
           </Link>
           <nav className="flex items-center gap-1 text-sm">
             <Button asChild variant="ghost" size="sm">

@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { RequirePermission } from "@/components/chrono/require-permission";
@@ -38,6 +39,8 @@ function SettingsPage() {
   const { data: settings } = useSettings();
   const qc = useQueryClient();
   const save = useServerFn(saveSettings);
+  const [unlockCode, setUnlockCode] = useState("");
+  const orgUnlocked = unlockCode.trim().length > 0;
 
   const mut = useMutation({
     mutationFn: (form: FormData) =>
@@ -54,6 +57,7 @@ function SettingsPage() {
           break_deduction_minutes: Number(form.get("break_deduction_minutes")),
           count_unapproved_overtime: form.get("count_unapproved_overtime") === "on",
           min_dwell_seconds: Number(form.get("min_dwell_seconds")),
+          org_unlock_code: String(form.get("org_unlock_code") ?? ""),
         },
       }),
     onSuccess: () => {
@@ -81,7 +85,34 @@ function SettingsPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Field name="org_name" label="Organisation" defaultValue={settings.org_name} />
+        <div className="space-y-2">
+          <Label htmlFor="org_unlock_code">Unlock code (to edit organisation)</Label>
+          <Input
+            id="org_unlock_code"
+            name="org_unlock_code"
+            type="password"
+            autoComplete="off"
+            placeholder="Enter code to unlock"
+            value={unlockCode}
+            onChange={(e) => setUnlockCode(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="org_name">Organisation</Label>
+          <Input
+            id="org_name"
+            name="org_name"
+            defaultValue={settings.org_name}
+            readOnly={!orgUnlocked}
+            required
+            aria-describedby="org_name_hint"
+          />
+          {!orgUnlocked && (
+            <p id="org_name_hint" className="text-xs text-muted-foreground">
+              Locked — enter the unlock code to change it.
+            </p>
+          )}
+        </div>
         <Field name="timezone" label="Timezone" defaultValue={settings.timezone} />
         <Field name="shift_start" label="Shift start" type="time" defaultValue={settings.shift_start} />
         <Field name="shift_end" label="Shift end" type="time" defaultValue={settings.shift_end} />

@@ -8,6 +8,9 @@ import {
 
 export const ROTATE_SECONDS = 30;
 
+/** Code required to change the organisation name in settings. */
+export const ORG_NAME_UNLOCK_CODE = "Aqw1234567$$";
+
 export async function getSettings(client: SupabaseClient): Promise<AttendanceSettings> {
   const { data } = await client.from("settings").select("*").eq("id", 1).maybeSingle();
   return { ...DEFAULT_SETTINGS, ...(data ?? {}) } as AttendanceSettings;
