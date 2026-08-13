@@ -131,7 +131,7 @@ function Field({
   name: string;
   label: string;
   type?: string;
-  defaultValue?: string;
+  defaultValue?: string | undefined;
 }) {
   return (
     <div className="space-y-2">
