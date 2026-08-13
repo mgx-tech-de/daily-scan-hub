@@ -19,7 +19,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { createEmployee, setEmployeePassword, updateEmployee } from "@/lib/chrono.functions";
+import { usePermissions } from "@/hooks/use-chrono";
+import { createEmployee, setEmployeePassword, setEmployeeRole, updateEmployee } from "@/lib/chrono.functions";
+import { ROLE_LABELS, type AppRole } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_authenticated/admin/employees")({
   head: () => ({
@@ -45,10 +47,12 @@ type Profile = {
 };
 
 function EmployeesPage() {
+  const perms = usePermissions();
   const qc = useQueryClient();
   const create = useServerFn(createEmployee);
   const update = useServerFn(updateEmployee);
   const setPassword = useServerFn(setEmployeePassword);
+  const setRole = useServerFn(setEmployeeRole);
   const [open, setOpen] = useState(false);
   const [resetFor, setResetFor] = useState<Profile | null>(null);
 
@@ -63,6 +67,25 @@ function EmployeesPage() {
     },
   });
 
+  const { data: roleRows } = useQuery({
+    queryKey: ["employee-roles"],
+    queryFn: async () => {
+      const { data } = await supabase.from("user_roles").select("user_id,role");
+      return (data ?? []) as Array<{ user_id: string; role: AppRole }>;
+    },
+  });
+  const roleByUser = new Map((roleRows ?? []).map((r) => [r.user_id, r.role]));
+
+  const roleMut = useMutation({
+    mutationFn: (vars: { id: string; role: AppRole }) => setRole({ data: vars }),
+    onSuccess: () => {
+      toast.success("Role updated");
+      qc.invalidateQueries({ queryKey: ["employee-roles"] });
+      qc.invalidateQueries({ queryKey: ["role"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const createMut = useMutation({
     mutationFn: (form: FormData) =>
       create({
@@ -74,7 +97,7 @@ function EmployeesPage() {
           employee_code: String(form.get("employee_code") || "") || undefined,
           department: String(form.get("department") || "") || undefined,
           position: String(form.get("position") || "") || undefined,
-          role: form.get("role") === "admin" ? "admin" : "employee",
+          role: (String(form.get("role") || "employee") as AppRole),
         },
       }),
     onSuccess: () => {
@@ -111,6 +134,7 @@ function EmployeesPage() {
       <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-4">
         <h1 className="font-display text-base font-semibold">Employees</h1>
         <span className="text-sm text-muted-foreground">{rows.length} accounts</span>
+        {perms.can("employees.manage") && (
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button size="sm" className="ml-auto">
@@ -148,6 +172,7 @@ function EmployeesPage() {
                     defaultValue="employee"
                   >
                     <option value="employee">Employee</option>
+                    <option value="manager">Manager</option>
                     <option value="admin">Admin</option>
                   </select>
                 </div>
@@ -158,6 +183,7 @@ function EmployeesPage() {
             </form>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       <div className="overflow-x-auto">
@@ -168,6 +194,7 @@ function EmployeesPage() {
               <TableHead>Code</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Department</TableHead>
+              <TableHead>Role</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -182,11 +209,35 @@ function EmployeesPage() {
                 <TableCell className="text-muted-foreground">{p.email}</TableCell>
                 <TableCell className="text-muted-foreground">{p.department ?? "—"}</TableCell>
                 <TableCell>
+                  {perms.can("roles.manage") ? (
+                    <select
+                      aria-label={`Role for ${p.first_name} ${p.last_name}`}
+                      className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                      value={roleByUser.get(p.id) ?? "employee"}
+                      onChange={(e) =>
+                        roleMut.mutate({ id: p.id, role: e.target.value as AppRole })
+                      }
+                    >
+                      <option value="employee">Employee</option>
+                      <option value="manager">Manager</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">
+                      {ROLE_LABELS[roleByUser.get(p.id) ?? "employee"]}
+                    </span>
+                  )}
+                </TableCell>
+                <TableCell>
                   <Badge variant={p.status === "active" ? "secondary" : "destructive"}>
                     {p.status}
                   </Badge>
                 </TableCell>
                 <TableCell className="space-x-2 text-right">
+                  {!perms.can("employees.manage") && (
+                    <span className="text-sm text-muted-foreground">View only</span>
+                  )}
+                  {perms.can("employees.reset_password") && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -195,6 +246,8 @@ function EmployeesPage() {
                   >
                     <KeyRound className="size-4" />
                   </Button>
+                  )}
+                  {perms.can("employees.manage") && (
                   <Button
                     size="sm"
                     variant={p.status === "active" ? "destructive" : "default"}
@@ -207,12 +260,13 @@ function EmployeesPage() {
                   >
                     {p.status === "active" ? "Suspend" : "Reactivate"}
                   </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
             {rows.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
                   No employees yet.
                 </TableCell>
               </TableRow>
