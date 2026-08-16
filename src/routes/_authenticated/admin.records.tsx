@@ -443,7 +443,7 @@ function RecordsPage() {
                   <TableCell className="tabular">{r.late_minutes}m</TableCell>
                   <TableCell className="text-right">
                     {perms.can("records.correct") ? (
-                      <Button size="sm" variant="outline" onClick={() => setEditing(r)}>
+                      <Button size="sm" variant="outline" onClick={() => openEditor(r)}>
                         <PencilLine className="size-4" />
                       </Button>
                     ) : (
@@ -490,29 +490,67 @@ function RecordsPage() {
             onSubmit={(e) => {
               e.preventDefault();
               if (!editing) return;
-              const form = new FormData(e.currentTarget);
               fix.mutate({
                 user_id: editing.user_id,
                 work_date: editing.work_date,
-                check_in: String(form.get("check_in") || "") || null,
-                check_out: String(form.get("check_out") || "") || null,
-                reason: String(form.get("reason")),
+                sessions: draft
+                  .filter((s) => s.in || s.out)
+                  .map((s) => ({ in: s.in || null, out: s.out || null })),
+                reason,
               });
             }}
           >
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="check_in">Check in</Label>
-                <Input id="check_in" name="check_in" type="time" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="check_out">Check out</Label>
-                <Input id="check_out" name="check_out" type="time" />
-              </div>
+            <div className="space-y-2">
+              <Label>Check-ins / check-outs</Label>
+              {draft.map((s, i) => (
+                <div key={i} className="flex items-end gap-2">
+                  <span className="pb-2 text-sm text-muted-foreground">{i + 1}.</span>
+                  <Input
+                    type="time"
+                    value={s.in}
+                    onChange={(e) =>
+                      setDraft((d) => d.map((x, j) => (j === i ? { ...x, in: e.target.value } : x)))
+                    }
+                  />
+                  <Input
+                    type="time"
+                    value={s.out}
+                    onChange={(e) =>
+                      setDraft((d) => d.map((x, j) => (j === i ? { ...x, out: e.target.value } : x)))
+                    }
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setDraft((d) => d.filter((_, j) => j !== i))}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
+              ))}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setDraft((d) => [...d, { in: "", out: "" }])}
+              >
+                <Plus className="mr-2 size-4" />
+                Add session
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Saving replaces every scan of this day with the list above.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="reason">Reason (required, stored in the audit log)</Label>
-              <Input id="reason" name="reason" required minLength={3} />
+              <Input
+                id="reason"
+                required
+                minLength={3}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+              />
             </div>
             <Button type="submit" className="w-full" disabled={fix.isPending}>
               Save correction
