@@ -14,6 +14,9 @@ export type AttendanceSettings = {
   break_deduction_minutes: number;
   count_unapproved_overtime: boolean;
   min_dwell_seconds: number;
+  max_daily_sessions: number;
+  language?: string;
+  theme?: string;
 };
 
 export const DEFAULT_SETTINGS: AttendanceSettings = {
@@ -27,6 +30,9 @@ export const DEFAULT_SETTINGS: AttendanceSettings = {
   break_deduction_minutes: 30,
   count_unapproved_overtime: false,
   min_dwell_seconds: 60,
+  max_daily_sessions: 1,
+  language: "de",
+  theme: "dark",
 };
 
 export function parseHm(hm: string): number {
