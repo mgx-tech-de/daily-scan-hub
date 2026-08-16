@@ -205,6 +205,7 @@ function RecordsPage() {
       work_date: string;
       check_in?: string | null;
       check_out?: string | null;
+      sessions?: Array<{ in: string | null; out: string | null }>;
       reason: string;
     }) => correct({ data: vars }),
     onSuccess: () => {
