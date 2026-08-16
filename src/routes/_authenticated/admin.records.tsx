@@ -72,6 +72,13 @@ function monthRange(month: string) {
   return { from: `${month}-01`, to: `${month}-${String(last).padStart(2, "0")}` };
 }
 
+function weekdayName(date: string) {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Intl.DateTimeFormat(undefined, { weekday: "long", timeZone: "UTC" }).format(
+    new Date(Date.UTC(y!, m! - 1, d!)),
+  );
+}
+
 function csvCell(v: unknown) {
   return `"${String(v ?? "").replace(/"/g, '""')}"`;
 }
@@ -102,8 +109,15 @@ function RecordsPage() {
   const [month, setMonth] = useState(today().slice(0, 7));
   const [employee, setEmployee] = useState<string>("all");
 
-  const { from, to } = mode === "daily" ? { from: day, to: day } : monthRange(month);
-  const monthlyGroup = mode === "monthly" && employee === "all";
+  const perEmployee = employee !== "all";
+  // A single employee is always shown as a full month of daily rows.
+  const { from, to } = perEmployee
+    ? monthRange(month)
+    : mode === "daily"
+      ? { from: day, to: day }
+      : monthRange(month);
+  const monthlyGroup = !perEmployee && mode === "monthly";
+  const dailyGroup = !perEmployee && mode === "daily";
 
   const { data: staff } = useQuery({
     queryKey: ["records-staff"],
@@ -211,14 +225,14 @@ function RecordsPage() {
           })();
     const title = monthlyGroup
       ? "Monthly totals per employee"
-      : mode === "monthly"
-        ? "Monthly attendance report"
-        : "Daily attendance report";
+      : dailyGroup
+        ? "Daily totals per employee"
+        : "Monthly attendance report";
 
     const head = [
       csvRow([orgName]),
       csvRow([title]),
-      csvRow(["Period", mode === "daily" ? day : month]),
+      csvRow(["Period", perEmployee ? month : mode === "daily" ? day : month]),
       csvRow(["Employees", who]),
       csvRow(["Generated", new Date().toLocaleString()]),
       "",
@@ -247,12 +261,37 @@ function RecordsPage() {
           .map((t) => csvRow([t.name, t.code, t.days, formatMinutes(t.net), decimalHours(t.net)])),
       ];
       file = `${orgName}-monthly-totals-${month}.csv`;
+    } else if (dailyGroup) {
+      body = [
+        csvRow(["Employee", "Code", "Date", "Day", "Total hours (hh:mm)", "Total hours (decimal)"]),
+        ...rows.map((r) =>
+          csvRow([
+            r.profiles ? `${r.profiles.first_name} ${r.profiles.last_name}` : "Unknown",
+            r.profiles?.employee_code ?? "",
+            r.work_date,
+            weekdayName(r.work_date),
+            formatMinutes(r.net_minutes),
+            decimalHours(r.net_minutes),
+          ]),
+        ),
+        "",
+        csvRow([
+          "Total",
+          "",
+          "",
+          "",
+          formatMinutes(rows.reduce((s, r) => s + r.net_minutes, 0)),
+          decimalHours(rows.reduce((s, r) => s + r.net_minutes, 0)),
+        ]),
+      ];
+      file = `${orgName}-daily-totals-${day}.csv`;
     } else {
       body = [
         csvRow([
           "Employee",
           "Code",
           "Date",
+          "Day",
           "Session",
           "Check in",
           "Check out",
@@ -273,6 +312,7 @@ function RecordsPage() {
               name,
               code,
               r.work_date,
+              weekdayName(r.work_date),
               i + 1,
               hm(s.in),
               hm(s.out),
@@ -295,11 +335,12 @@ function RecordsPage() {
           "",
           "",
           "",
+          "",
           formatMinutes(grand),
           decimalHours(grand),
         ]),
       );
-      file = `${orgName}-${mode === "daily" ? day : month}.csv`;
+      file = `${orgName}-${who}-${month}.csv`;
     }
 
     downloadCsv(file.replace(/\s+/g, "-"), [...head, ...body]);
@@ -326,19 +367,21 @@ function RecordsPage() {
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-1">
-          <Label>Period</Label>
-          <Select value={mode} onValueChange={(v) => setMode(v as "daily" | "monthly")}>
-            <SelectTrigger className="w-36">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="daily">Daily</SelectItem>
-              <SelectItem value="monthly">Monthly</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        {mode === "daily" ? (
+        {!perEmployee && (
+          <div className="space-y-1">
+            <Label>Period</Label>
+            <Select value={mode} onValueChange={(v) => setMode(v as "daily" | "monthly")}>
+              <SelectTrigger className="w-36">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="daily">Daily</SelectItem>
+                <SelectItem value="monthly">Monthly</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        {dailyGroup ? (
           <div className="space-y-1">
             <Label htmlFor="day">Date</Label>
             <Input id="day" type="date" value={day} onChange={(e) => setDay(e.target.value)} />
@@ -361,32 +404,34 @@ function RecordsPage() {
           disabled={!rows.length || !perms.can("records.export")}
         >
           <Download className="mr-2 size-4" />
-          {monthlyGroup ? "Export monthly totals" : "Export CSV"}
+          {monthlyGroup ? "Export monthly totals" : dailyGroup ? "Export daily totals" : "Export CSV"}
         </Button>
       </div>
 
       {monthlyGroup ? (
         <MonthlyTotals rows={rows} />
+      ) : dailyGroup ? (
+        <DailyTotals rows={rows} />
       ) : (
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Employee</TableHead>
                 <TableHead>Date</TableHead>
+                <TableHead>Day</TableHead>
                 <TableHead>Sessions</TableHead>
-                <TableHead>Net</TableHead>
+                <TableHead>Worked</TableHead>
                 <TableHead>Late</TableHead>
                 <TableHead className="text-right">Fix</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((r) => (
+              {[...rows]
+                .sort((a, b) => a.work_date.localeCompare(b.work_date))
+                .map((r) => (
                 <TableRow key={r.id}>
-                  <TableCell className="font-medium">
-                    {r.profiles ? `${r.profiles.first_name} ${r.profiles.last_name}` : "Unknown"}
-                  </TableCell>
-                  <TableCell className="tabular">{r.work_date}</TableCell>
+                  <TableCell className="tabular font-medium">{r.work_date}</TableCell>
+                  <TableCell>{weekdayName(r.work_date)}</TableCell>
                   <TableCell className="tabular">
                     <div className="flex flex-col gap-0.5">
                       {sessionsOf(r).map((s, i) => (
@@ -484,6 +529,14 @@ function RecordsPage() {
 }
 
 function MonthlyTotals({ rows }: { rows: Row[] }) {
+  return <TotalsTable rows={rows} label="Days worked" />;
+}
+
+function DailyTotals({ rows }: { rows: Row[] }) {
+  return <TotalsTable rows={rows} label="Sessions" daily />;
+}
+
+function TotalsTable({ rows, label, daily }: { rows: Row[]; label: string; daily?: boolean }) {
   const totals = new Map<string, { name: string; code: string; net: number; days: number }>();
   for (const r of rows) {
     const prev = totals.get(r.user_id) ?? {
@@ -493,7 +546,11 @@ function MonthlyTotals({ rows }: { rows: Row[] }) {
       days: 0,
     };
     prev.net += r.net_minutes;
-    prev.days += r.net_minutes > 0 ? 1 : 0;
+    prev.days += daily
+      ? Math.max(r.sessions.length, r.check_in_at ? 1 : 0)
+      : r.net_minutes > 0
+        ? 1
+        : 0;
     totals.set(r.user_id, prev);
   }
   const list = [...totals.values()].sort((a, b) => a.name.localeCompare(b.name));
@@ -505,7 +562,7 @@ function MonthlyTotals({ rows }: { rows: Row[] }) {
           <TableRow>
             <TableHead>Employee</TableHead>
             <TableHead>Code</TableHead>
-            <TableHead>Days worked</TableHead>
+            <TableHead>{label}</TableHead>
             <TableHead>Total hours</TableHead>
             <TableHead className="text-right">Decimal</TableHead>
           </TableRow>
