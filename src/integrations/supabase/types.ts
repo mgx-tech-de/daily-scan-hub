@@ -221,13 +221,18 @@ export type Database = {
           break_threshold_minutes: number
           count_unapproved_overtime: boolean
           daily_cutoff: string
+          geofence_radius_m: number
           grace_minutes: number
           id: number
           language: string
           max_daily_sessions: number
           min_dwell_seconds: number
+          office_address: string
+          office_lat: number | null
+          office_lng: number | null
           org_name: string
           qr_open: string
+          require_geofence: boolean
           shift_end: string
           shift_start: string
           theme: string
@@ -239,13 +244,18 @@ export type Database = {
           break_threshold_minutes?: number
           count_unapproved_overtime?: boolean
           daily_cutoff?: string
+          geofence_radius_m?: number
           grace_minutes?: number
           id?: number
           language?: string
           max_daily_sessions?: number
           min_dwell_seconds?: number
+          office_address?: string
+          office_lat?: number | null
+          office_lng?: number | null
           org_name?: string
           qr_open?: string
+          require_geofence?: boolean
           shift_end?: string
           shift_start?: string
           theme?: string
@@ -257,13 +267,18 @@ export type Database = {
           break_threshold_minutes?: number
           count_unapproved_overtime?: boolean
           daily_cutoff?: string
+          geofence_radius_m?: number
           grace_minutes?: number
           id?: number
           language?: string
           max_daily_sessions?: number
           min_dwell_seconds?: number
+          office_address?: string
+          office_lat?: number | null
+          office_lng?: number | null
           org_name?: string
           qr_open?: string
+          require_geofence?: boolean
           shift_end?: string
           shift_start?: string
           theme?: string
