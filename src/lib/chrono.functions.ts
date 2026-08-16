@@ -469,6 +469,14 @@ export const manualCorrection = createServerFn({ method: "POST" })
         work_date: z.string(),
         check_in: z.string().nullable().optional(),
         check_out: z.string().nullable().optional(),
+        sessions: z
+          .array(
+            z.object({
+              in: z.string().nullable().optional(),
+              out: z.string().nullable().optional(),
+            }),
+          )
+          .optional(),
         reason: z.string().min(3),
       })
       .parse(input),
@@ -488,7 +496,35 @@ export const manualCorrection = createServerFn({ method: "POST" })
 
     const rows: Array<Record<string, unknown>> = [];
     const now = new Date().toISOString();
-    if (data.check_in) {
+    const replaceAll = Array.isArray(data.sessions);
+    if (replaceAll) {
+      for (const s of data.sessions ?? []) {
+        if (s.in) {
+          rows.push({
+            user_id: data.user_id,
+            work_date: data.work_date,
+            kind: "check_in",
+            raw_at: now,
+            effective_at: instantAt(data.work_date, parseHm(s.in), settings.timezone).toISOString(),
+            source: "admin_manual",
+            reason: data.reason,
+            created_by: context.userId,
+          });
+        }
+        if (s.out) {
+          rows.push({
+            user_id: data.user_id,
+            work_date: data.work_date,
+            kind: "check_out",
+            raw_at: now,
+            effective_at: instantAt(data.work_date, parseHm(s.out), settings.timezone).toISOString(),
+            source: "admin_manual",
+            reason: data.reason,
+            created_by: context.userId,
+          });
+        }
+      }
+    } else if (data.check_in) {
       const at = instantAt(data.work_date, parseHm(data.check_in), settings.timezone);
       rows.push({
         user_id: data.user_id,
@@ -501,7 +537,7 @@ export const manualCorrection = createServerFn({ method: "POST" })
         created_by: context.userId,
       });
     }
-    if (data.check_out) {
+    if (!replaceAll && data.check_out) {
       const at = instantAt(data.work_date, parseHm(data.check_out), settings.timezone);
       rows.push({
         user_id: data.user_id,
@@ -514,9 +550,21 @@ export const manualCorrection = createServerFn({ method: "POST" })
         created_by: context.userId,
       });
     }
-    if (rows.length === 0) throw new Error("Provide a check-in and/or check-out time.");
-    const { error } = await admin.from("attendance_events").insert(rows as never);
-    if (error) throw new Error(error.message);
+    if (rows.length === 0 && !replaceAll) {
+      throw new Error("Provide a check-in and/or check-out time.");
+    }
+    if (replaceAll) {
+      // Editing the day replaces every scan of that day with the corrected list.
+      await admin
+        .from("attendance_events")
+        .delete()
+        .eq("user_id", data.user_id)
+        .eq("work_date", data.work_date);
+    }
+    if (rows.length) {
+      const { error } = await admin.from("attendance_events").insert(rows as never);
+      if (error) throw new Error(error.message);
+    }
 
     const day = await recomputeDay(admin, data.user_id, data.work_date, settings);
     await audit(admin, {
