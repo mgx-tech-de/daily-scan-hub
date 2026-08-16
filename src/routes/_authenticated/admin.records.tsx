@@ -293,13 +293,8 @@ function RecordsPage() {
           "Code",
           "Date",
           "Day",
-          "Session",
-          "Check in",
-          "Check out",
-          "Break (min)",
-          "Late (min)",
-          "Daily total (hh:mm)",
-          "Daily total (decimal)",
+          "Worked hours (hh:mm)",
+          "Worked hours (decimal)",
         ]),
       ];
       let grand = 0;
@@ -307,33 +302,21 @@ function RecordsPage() {
         grand += r.net_minutes;
         const name = r.profiles ? `${r.profiles.first_name} ${r.profiles.last_name}` : "Unknown";
         const code = r.profiles?.employee_code ?? "";
-        sessionsOf(r).forEach((s, i) => {
-          body.push(
-            csvRow([
-              name,
-              code,
-              r.work_date,
-              weekdayName(r.work_date),
-              i + 1,
-              hm(s.in),
-              hm(s.out),
-              i === 0 ? r.break_minutes : "",
-              i === 0 ? r.late_minutes : "",
-              i === 0 ? formatMinutes(r.net_minutes) : "",
-              i === 0 ? decimalHours(r.net_minutes) : "",
-            ]),
-          );
-        });
+        body.push(
+          csvRow([
+            name,
+            code,
+            r.work_date,
+            weekdayName(r.work_date),
+            formatMinutes(r.net_minutes),
+            decimalHours(r.net_minutes),
+          ]),
+        );
       }
       body.push("");
       body.push(
         csvRow([
           "Total",
-          "",
-          "",
-          "",
-          "",
-          "",
           "",
           "",
           "",
