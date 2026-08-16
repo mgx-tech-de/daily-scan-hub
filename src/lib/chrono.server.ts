@@ -2,7 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
   DEFAULT_SETTINGS,
-  computeDay,
+  computeSessions,
+  pairSessions,
   type AttendanceSettings,
 } from "./attendance-rules";
 
@@ -128,14 +129,13 @@ export async function recomputeDay(
     .order("effective_at", { ascending: true });
 
   const list = events ?? [];
-  const ins = list.filter((e) => e.kind === "check_in");
-  const outs = list.filter((e) => e.kind === "check_out");
-  const first = ins[0];
-  const last = outs[outs.length - 1];
-
-  const checkIn = first ? new Date(first.effective_at) : null;
-  const checkOut = last ? new Date(last.effective_at) : null;
-  const totals = computeDay(checkIn, checkOut, settings);
+  const sessions = pairSessions(list as Array<{ kind: string; effective_at: string }>);
+  const totals = computeSessions(sessions, settings);
+  const first = list.filter((e) => e.kind === "check_in")[0];
+  const closed = sessions.filter((s) => s.out);
+  const checkIn = sessions[0]?.in ?? null;
+  const checkOut = closed.length ? closed[closed.length - 1]!.out! : null;
+  const openSession = sessions.some((s) => !s.out);
 
   const row = {
     user_id: userId,
@@ -149,7 +149,9 @@ export async function recomputeDay(
     late_minutes: totals.late_minutes,
     overtime_minutes: totals.overtime_minutes,
     undertime_minutes: totals.undertime_minutes,
-    status: (checkIn && checkOut ? "present" : "incomplete") as "present" | "incomplete",
+    status: (checkIn && checkOut && !openSession ? "present" : "incomplete") as
+      | "present"
+      | "incomplete",
     updated_at: new Date().toISOString(),
   };
 
