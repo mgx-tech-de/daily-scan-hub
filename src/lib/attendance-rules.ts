@@ -136,15 +136,14 @@ export function computeDay(
   const gross = Math.max(0, Math.floor((checkOut.getTime() - checkIn.getTime()) / 60000));
   const overtime = Math.max(0, outZ.minutes - shiftEnd);
 
-  // R4 — unapproved overtime is reported but not paid by default.
-  const payableOutMinutes = s.count_unapproved_overtime
-    ? outZ.minutes
-    : Math.min(outZ.minutes, shiftEnd);
-  const payableGross = Math.max(0, payableOutMinutes - inZ.minutes);
+  // R2/R4 — early scans count from shift start, late scans stop at shift end.
+  const payableIn = Math.max(inZ.minutes, shiftStart);
+  const payableOut = Math.min(outZ.minutes, shiftEnd);
+  const payableGross = Math.max(0, payableOut - payableIn);
 
   const breakMinutes =
     payableGross >= s.break_threshold_minutes ? s.break_deduction_minutes : 0;
-  const net = Math.max(0, payableGross - breakMinutes);
+  const net = Math.min(expected, Math.max(0, payableGross - breakMinutes));
 
   return {
     gross_minutes: gross,
@@ -200,16 +199,18 @@ export function computeSessions(sessions: Session[], s: AttendanceSettings): Day
     const inZ = zoned(seg.in, s.timezone);
     const outZ = zoned(seg.out, s.timezone);
     gross += Math.max(0, Math.floor((seg.out.getTime() - seg.in.getTime()) / 60000));
-    const payableOut = s.count_unapproved_overtime
-      ? outZ.minutes
-      : Math.min(outZ.minutes, shiftEnd);
-    payableGross += Math.max(0, payableOut - inZ.minutes);
+    // Clamp every session to the shift window: before shift start counts as
+    // shift start, after shift end counts as shift end.
+    const payableIn = Math.max(inZ.minutes, shiftStart);
+    const payableOut = Math.min(outZ.minutes, shiftEnd);
+    payableGross += Math.max(0, payableOut - payableIn);
     lastOutMinutes = Math.max(lastOutMinutes, outZ.minutes);
   }
 
   const breakMinutes =
     payableGross >= s.break_threshold_minutes ? s.break_deduction_minutes : 0;
-  const net = Math.max(0, payableGross - breakMinutes);
+  // A single day can never exceed the scheduled net maximum (e.g. 9 hours).
+  const net = Math.min(expected, Math.max(0, payableGross - breakMinutes));
 
   return {
     gross_minutes: gross,
