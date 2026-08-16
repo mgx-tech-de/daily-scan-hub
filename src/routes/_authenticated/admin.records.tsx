@@ -367,19 +367,21 @@ function RecordsPage() {
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-1">
-          <Label>Period</Label>
-          <Select value={mode} onValueChange={(v) => setMode(v as "daily" | "monthly")}>
-            <SelectTrigger className="w-36">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="daily">Daily</SelectItem>
-              <SelectItem value="monthly">Monthly</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        {mode === "daily" ? (
+        {!perEmployee && (
+          <div className="space-y-1">
+            <Label>Period</Label>
+            <Select value={mode} onValueChange={(v) => setMode(v as "daily" | "monthly")}>
+              <SelectTrigger className="w-36">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="daily">Daily</SelectItem>
+                <SelectItem value="monthly">Monthly</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        {dailyGroup ? (
           <div className="space-y-1">
             <Label htmlFor="day">Date</Label>
             <Input id="day" type="date" value={day} onChange={(e) => setDay(e.target.value)} />
@@ -402,32 +404,34 @@ function RecordsPage() {
           disabled={!rows.length || !perms.can("records.export")}
         >
           <Download className="mr-2 size-4" />
-          {monthlyGroup ? "Export monthly totals" : "Export CSV"}
+          {monthlyGroup ? "Export monthly totals" : dailyGroup ? "Export daily totals" : "Export CSV"}
         </Button>
       </div>
 
       {monthlyGroup ? (
         <MonthlyTotals rows={rows} />
+      ) : dailyGroup ? (
+        <DailyTotals rows={rows} />
       ) : (
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Employee</TableHead>
                 <TableHead>Date</TableHead>
+                <TableHead>Day</TableHead>
                 <TableHead>Sessions</TableHead>
-                <TableHead>Net</TableHead>
+                <TableHead>Worked</TableHead>
                 <TableHead>Late</TableHead>
                 <TableHead className="text-right">Fix</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((r) => (
+              {[...rows]
+                .sort((a, b) => a.work_date.localeCompare(b.work_date))
+                .map((r) => (
                 <TableRow key={r.id}>
-                  <TableCell className="font-medium">
-                    {r.profiles ? `${r.profiles.first_name} ${r.profiles.last_name}` : "Unknown"}
-                  </TableCell>
-                  <TableCell className="tabular">{r.work_date}</TableCell>
+                  <TableCell className="tabular font-medium">{r.work_date}</TableCell>
+                  <TableCell>{weekdayName(r.work_date)}</TableCell>
                   <TableCell className="tabular">
                     <div className="flex flex-col gap-0.5">
                       {sessionsOf(r).map((s, i) => (
