@@ -20,6 +20,7 @@ import { useSettings, useUser } from "@/hooks/use-chrono";
 import { supabase } from "@/integrations/supabase/client";
 import { formatMinutes, zoned } from "@/lib/attendance-rules";
 import { scanQr } from "@/lib/chrono.functions";
+import { useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/home")({
   head: () => ({
@@ -39,6 +40,7 @@ export const Route = createFileRoute("/_authenticated/home")({
 type ScanOk = Extract<Awaited<ReturnType<typeof scanQr>>, { ok: true }>;
 
 function HomePage() {
+  const t = useT();
   const { user } = useUser();
   const { data: settings } = useSettings();
   const qc = useQueryClient();
@@ -79,11 +81,11 @@ function HomePage() {
         toast.error(res.message);
       } else {
         setReceipt(res);
-        toast.success(res.kind === "check_in" ? "Checked in" : "Checked out");
+        toast.success(res.kind === "check_in" ? t("Checked in") : t("Checked out"));
         qc.invalidateQueries({ queryKey: ["my-days"] });
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Scan failed");
+      toast.error(err instanceof Error ? err.message : t("Scan failed"));
     } finally {
       setBusy(false);
     }
@@ -93,10 +95,10 @@ function HomePage() {
     <AppShell>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,380px)_1fr]">
         <section className="panel p-5">
-          <h1 className="font-display text-xl font-semibold">Scan the workplace code</h1>
+          <h1 className="font-display text-xl font-semibold">{t("Scan the workplace code")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {settings
-              ? `Open ${settings.qr_open}–${settings.daily_cutoff}. First scan checks you in, the next checks you out.`
+              ? `${settings.qr_open}–${settings.daily_cutoff} · ${settings.max_daily_sessions ?? 1} ${t("sessions/day")}`
               : "Loading…"}
           </p>
           <div className="mt-4">
@@ -115,25 +117,26 @@ function HomePage() {
                   <LogOut className="size-5 text-success" aria-hidden />
                 )}
                 <span className="font-display text-sm font-semibold uppercase tracking-wide text-success">
-                  {receipt.kind === "check_in" ? "Check in" : "Check out"}
+                  {receipt.kind === "check_in" ? t("Check in") : t("Check out")}
+                  {receipt.maxSessions > 1 ? ` · ${receipt.session}/${receipt.maxSessions}` : ""}
                 </span>
               </div>
-              <p className="mt-2 text-lg font-semibold">{receipt.name || "Employee"}</p>
+              <p className="mt-2 text-lg font-semibold">{receipt.name || t("Employee")}</p>
               <p className="tabular text-sm text-muted-foreground">
                 {receipt.time} · {receipt.workDate}
               </p>
               {receipt.kind === "check_out" && (
                 <dl className="tabular mt-3 grid grid-cols-3 gap-2 text-sm">
                   <div>
-                    <dt className="text-muted-foreground">Gross</dt>
+                    <dt className="text-muted-foreground">{t("Gross")}</dt>
                     <dd>{formatMinutes(receipt.totals.gross)}</dd>
                   </div>
                   <div>
-                    <dt className="text-muted-foreground">Break</dt>
+                    <dt className="text-muted-foreground">{t("Break")}</dt>
                     <dd>{formatMinutes(receipt.totals.break)}</dd>
                   </div>
                   <div>
-                    <dt className="text-muted-foreground">Net</dt>
+                    <dt className="text-muted-foreground">{t("Net")}</dt>
                     <dd className="font-semibold">{formatMinutes(receipt.totals.net)}</dd>
                   </div>
                 </dl>
@@ -144,27 +147,27 @@ function HomePage() {
 
         <section className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-3">
-            <Stat label="Today (net)" value={formatMinutes(todayRow?.net_minutes ?? 0)} />
-            <Stat label="This month" value={formatMinutes(monthNet)} />
-            <Stat label="Recorded total" value={formatMinutes(totalNet)} />
+            <Stat label={t("Today (net)")} value={formatMinutes(todayRow?.net_minutes ?? 0)} />
+            <Stat label={t("This month")} value={formatMinutes(monthNet)} />
+            <Stat label={t("Recorded total")} value={formatMinutes(totalNet)} />
           </div>
 
           <div className="panel overflow-hidden">
             <div className="flex items-center gap-2 border-b border-border px-5 py-4">
               <CheckCircle2 className="size-4 text-primary" aria-hidden />
-              <h2 className="font-display text-base font-semibold">My attendance history</h2>
+              <h2 className="font-display text-base font-semibold">{t("My attendance history")}</h2>
             </div>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>In</TableHead>
-                    <TableHead>Out</TableHead>
-                    <TableHead>Gross</TableHead>
-                    <TableHead>Break</TableHead>
-                    <TableHead>Net</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>{t("Date")}</TableHead>
+                    <TableHead>{t("In")}</TableHead>
+                    <TableHead>{t("Out")}</TableHead>
+                    <TableHead>{t("Gross")}</TableHead>
+                    <TableHead>{t("Break")}</TableHead>
+                    <TableHead>{t("Net")}</TableHead>
+                    <TableHead>{t("Status")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -197,7 +200,7 @@ function HomePage() {
                   {days.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                        No attendance recorded yet.
+                        {t("No attendance recorded yet.")}
                       </TableCell>
                     </TableRow>
                   )}
