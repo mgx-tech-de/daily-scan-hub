@@ -200,6 +200,16 @@ function RecordsPage() {
   const hm = (iso: string | null) => (iso ? zoned(new Date(iso), tz).hm : "—");
   const sessionsOf = (r: Row) =>
     r.sessions.length ? r.sessions : [{ in: r.check_in_at, out: r.check_out_at }];
+  const timeValue = (iso: string | null) => (iso ? zoned(new Date(iso), tz).hm : "");
+
+  function openEditor(r: Row) {
+    const list = sessionsOf(r)
+      .filter((s) => s.in || s.out)
+      .map((s) => ({ in: timeValue(s.in), out: timeValue(s.out) }));
+    setDraft(list.length ? list : [{ in: "", out: "" }]);
+    setReason("");
+    setEditing(r);
+  }
 
   const fix = useMutation({
     mutationFn: (vars: {
