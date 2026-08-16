@@ -72,6 +72,13 @@ function monthRange(month: string) {
   return { from: `${month}-01`, to: `${month}-${String(last).padStart(2, "0")}` };
 }
 
+function weekdayName(date: string) {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Intl.DateTimeFormat(undefined, { weekday: "long", timeZone: "UTC" }).format(
+    new Date(Date.UTC(y!, m! - 1, d!)),
+  );
+}
+
 function csvCell(v: unknown) {
   return `"${String(v ?? "").replace(/"/g, '""')}"`;
 }
