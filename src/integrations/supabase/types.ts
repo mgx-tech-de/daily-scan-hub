@@ -223,11 +223,14 @@ export type Database = {
           daily_cutoff: string
           grace_minutes: number
           id: number
+          language: string
+          max_daily_sessions: number
           min_dwell_seconds: number
           org_name: string
           qr_open: string
           shift_end: string
           shift_start: string
+          theme: string
           timezone: string
           updated_at: string
         }
@@ -238,11 +241,14 @@ export type Database = {
           daily_cutoff?: string
           grace_minutes?: number
           id?: number
+          language?: string
+          max_daily_sessions?: number
           min_dwell_seconds?: number
           org_name?: string
           qr_open?: string
           shift_end?: string
           shift_start?: string
+          theme?: string
           timezone?: string
           updated_at?: string
         }
@@ -253,11 +259,14 @@ export type Database = {
           daily_cutoff?: string
           grace_minutes?: number
           id?: number
+          language?: string
+          max_daily_sessions?: number
           min_dwell_seconds?: number
           org_name?: string
           qr_open?: string
           shift_end?: string
           shift_start?: string
+          theme?: string
           timezone?: string
           updated_at?: string
         }

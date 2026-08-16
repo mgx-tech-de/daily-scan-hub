@@ -134,7 +134,11 @@ export const getPublicKiosk = createServerFn({ method: "GET" }).handler(async ()
 export const getOrgName = createServerFn({ method: "GET" }).handler(async () => {
   const { admin, getSettings } = await loadServer();
   const settings = await getSettings(admin);
-  return { orgName: (settings as { org_name?: string }).org_name ?? "ChronoDesk" };
+  return {
+    orgName: (settings as { org_name?: string }).org_name ?? "ChronoDesk",
+    language: settings.language ?? "de",
+    theme: settings.theme ?? "dark",
+  };
 });
 
 /** Public: whether the first-run setup is still available. */
@@ -230,21 +234,26 @@ export const scanQr = createServerFn({ method: "POST" })
       .eq("work_date", workDate)
       .order("raw_at", { ascending: true });
     const list = events ?? [];
-    const hasIn = list.some((e) => e.kind === "check_in");
-    const hasOut = list.some((e) => e.kind === "check_out");
+    const ins = list.filter((e) => e.kind === "check_in");
+    const outs = list.filter((e) => e.kind === "check_out");
+    const maxSessions = Math.max(1, settings.max_daily_sessions ?? 1);
+    const openSession = ins.length > outs.length;
 
-    if (hasIn && hasOut) {
-      const out = list.filter((e) => e.kind === "check_out").pop()!;
+    if (!openSession && ins.length >= maxSessions) {
+      const out = outs[outs.length - 1]!;
       return {
         ok: false as const,
-        message: `You already checked out at ${zoned(new Date(out.effective_at), settings.timezone).hm}.`,
+        message:
+          maxSessions === 1
+            ? `You already checked out at ${zoned(new Date(out.effective_at), settings.timezone).hm}.`
+            : `You have used all ${maxSessions} check-in/check-out sessions for today.`,
       };
     }
 
-    const kind = hasIn ? "check_out" : "check_in";
+    const kind = openSession ? "check_out" : "check_in";
 
     if (kind === "check_out") {
-      const lastIn = list.filter((e) => e.kind === "check_in").pop()!;
+      const lastIn = ins[ins.length - 1]!;
       const dwell = (now.getTime() - new Date(lastIn.raw_at).getTime()) / 1000;
       if (dwell < settings.min_dwell_seconds) {
         return {
@@ -255,7 +264,7 @@ export const scanQr = createServerFn({ method: "POST" })
     }
 
     const effective =
-      kind === "check_in" ? clampCheckIn(now, workDate, settings) : now;
+      kind === "check_in" && ins.length === 0 ? clampCheckIn(now, workDate, settings) : now;
 
     await admin.from("attendance_events").insert({
       user_id: context.userId,
@@ -283,6 +292,8 @@ export const scanQr = createServerFn({ method: "POST" })
       time: zoned(effective, settings.timezone).hm,
       rawTime: zoned(now, settings.timezone).hm,
       name: `${profile?.first_name ?? ""} ${profile?.last_name ?? ""}`.trim(),
+      session: kind === "check_in" ? ins.length + 1 : ins.length,
+      maxSessions,
       totals: {
         gross: day.gross_minutes,
         break: day.break_minutes,
@@ -496,6 +507,9 @@ export const saveSettings = createServerFn({ method: "POST" })
         break_deduction_minutes: z.number().int().min(0),
         count_unapproved_overtime: z.boolean(),
         min_dwell_seconds: z.number().int().min(0),
+        max_daily_sessions: z.number().int().min(1).max(12),
+        language: z.enum(["de", "en", "ar", "tr", "ru"]),
+        theme: z.enum(["dark", "light"]),
         org_unlock_code: z.string().optional(),
       })
       .parse(input),

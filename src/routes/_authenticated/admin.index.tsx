@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useSettings } from "@/hooks/use-chrono";
 import { supabase } from "@/integrations/supabase/client";
 import { formatMinutes, zoned } from "@/lib/attendance-rules";
+import { useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
   head: () => ({
@@ -35,6 +36,7 @@ type Row = {
 };
 
 function LiveBoard() {
+  const t = useT();
   const { data: settings } = useSettings();
   const today = settings ? zoned(new Date(), settings.timezone).date : "";
 
@@ -72,34 +74,38 @@ function LiveBoard() {
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-4">
-        <Stat label="Scanned in today" value={String(rows.length)} />
-        <Stat label="Currently on site" value={String(onSite.length)} />
-        <Stat label="Late arrivals" value={String(late.length)} />
-        <Stat label="Net hours logged" value={formatMinutes(netTotal)} />
+        <Stat label={t("Scanned in today")} value={String(rows.length)} />
+        <Stat label={t("Currently on site")} value={String(onSite.length)} />
+        <Stat label={t("Late arrivals")} value={String(late.length)} />
+        <Stat label={t("Net hours logged")} value={formatMinutes(netTotal)} />
       </div>
 
       <div className="panel overflow-hidden">
         <div className="border-b border-border px-5 py-4">
-          <h1 className="font-display text-base font-semibold">Today · {today || "—"}</h1>
+          <h1 className="font-display text-base font-semibold">
+            {t("Today")} · {today || "—"}
+          </h1>
         </div>
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Employee</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead>In</TableHead>
-                <TableHead>Out</TableHead>
-                <TableHead>Net</TableHead>
-                <TableHead>Overtime</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>{t("Employee")}</TableHead>
+                <TableHead>{t("Department")}</TableHead>
+                <TableHead>{t("In")}</TableHead>
+                <TableHead>{t("Out")}</TableHead>
+                <TableHead>{t("Net")}</TableHead>
+                <TableHead>{t("Overtime")}</TableHead>
+                <TableHead>{t("Status")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="font-medium">
-                    {r.profiles ? `${r.profiles.first_name} ${r.profiles.last_name}` : "Unknown"}
+                    {r.profiles
+                      ? `${r.profiles.first_name} ${r.profiles.last_name}`
+                      : t("Unknown")}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {r.profiles?.department ?? "—"}
@@ -120,13 +126,13 @@ function LiveBoard() {
                   <TableCell className="tabular">{formatMinutes(r.overtime_minutes)}</TableCell>
                   <TableCell>
                     {r.check_in_at && !r.check_out_at ? (
-                      <Badge>On site</Badge>
+                      <Badge>{t("On site")}</Badge>
                     ) : (
                       <Badge variant="secondary">{r.status}</Badge>
                     )}
                     {r.late_minutes > 0 && (
                       <Badge variant="destructive" className="ml-2">
-                        Late {r.late_minutes}m
+                        {t("Late")} {r.late_minutes}m
                       </Badge>
                     )}
                   </TableCell>
@@ -135,7 +141,7 @@ function LiveBoard() {
               {rows.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
-                    No scans yet today.
+                    {t("No scans yet today.")}
                   </TableCell>
                 </TableRow>
               )}

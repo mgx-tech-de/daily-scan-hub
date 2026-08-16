@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useSettings } from "@/hooks/use-chrono";
 import { saveSettings } from "@/lib/chrono.functions";
+import { LANGUAGES, useLocale, type Lang, type Theme } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/admin/settings")({
   head: () => ({
@@ -39,6 +40,7 @@ function SettingsPage() {
   const { data: settings } = useSettings();
   const qc = useQueryClient();
   const save = useServerFn(saveSettings);
+  const { t, setLang, setTheme } = useLocale();
   const [unlockCode, setUnlockCode] = useState("");
   const orgUnlocked = unlockCode.trim().length > 0;
 
@@ -57,17 +59,23 @@ function SettingsPage() {
           break_deduction_minutes: Number(form.get("break_deduction_minutes")),
           count_unapproved_overtime: form.get("count_unapproved_overtime") === "on",
           min_dwell_seconds: Number(form.get("min_dwell_seconds")),
+          max_daily_sessions: Number(form.get("max_daily_sessions")),
+          language: String(form.get("language")) as Lang,
+          theme: String(form.get("theme")) as Theme,
           org_unlock_code: String(form.get("org_unlock_code") ?? ""),
         },
       }),
-    onSuccess: () => {
-      toast.success("Settings saved");
+    onSuccess: (_res, form) => {
+      setLang(String(form.get("language")) as Lang);
+      setTheme(String(form.get("theme")) as Theme);
+      toast.success(t("Settings saved"));
       qc.invalidateQueries({ queryKey: ["settings"] });
+      qc.invalidateQueries({ queryKey: ["org-locale"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  if (!settings) return <p className="text-sm text-muted-foreground">Loading settings…</p>;
+  if (!settings) return <p className="text-sm text-muted-foreground">{t("Loading settings…")}</p>;
 
   return (
     <form
@@ -78,27 +86,29 @@ function SettingsPage() {
       }}
     >
       <div>
-        <h1 className="font-display text-base font-semibold">Attendance rules</h1>
+        <h1 className="font-display text-base font-semibold">{t("Attendance rules")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          These values drive clamping, lateness, break deduction and overtime for every scan.
+          {t(
+            "These values drive clamping, lateness, break deduction and overtime for every scan.",
+          )}
         </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div className="space-y-2">
-          <Label htmlFor="org_unlock_code">Unlock code (to edit organisation)</Label>
+          <Label htmlFor="org_unlock_code">{t("Unlock code (to edit organisation)")}</Label>
           <Input
             id="org_unlock_code"
             name="org_unlock_code"
             type="password"
             autoComplete="off"
-            placeholder="Enter code to unlock"
+            placeholder={t("Enter code to unlock")}
             value={unlockCode}
             onChange={(e) => setUnlockCode(e.target.value)}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="org_name">Organisation</Label>
+          <Label htmlFor="org_name">{t("Organisation")}</Label>
           <Input
             id="org_name"
             name="org_name"
@@ -109,39 +119,84 @@ function SettingsPage() {
           />
           {!orgUnlocked && (
             <p id="org_name_hint" className="text-xs text-muted-foreground">
-              Locked — enter the unlock code to change it.
+              {t("Locked — enter the unlock code to change it.")}
             </p>
           )}
         </div>
-        <Field name="timezone" label="Timezone" defaultValue={settings.timezone} />
-        <Field name="shift_start" label="Shift start" type="time" defaultValue={settings.shift_start} />
-        <Field name="shift_end" label="Shift end" type="time" defaultValue={settings.shift_end} />
-        <Field name="qr_open" label="Scan window opens" type="time" defaultValue={settings.qr_open} />
-        <Field name="daily_cutoff" label="Scan window closes" type="time" defaultValue={settings.daily_cutoff} />
+        <Field name="timezone" label={t("Timezone")} defaultValue={settings.timezone} />
+        <Field name="shift_start" label={t("Shift start")} type="time" defaultValue={settings.shift_start} />
+        <Field name="shift_end" label={t("Shift end")} type="time" defaultValue={settings.shift_end} />
+        <Field name="qr_open" label={t("Scan window opens")} type="time" defaultValue={settings.qr_open} />
+        <Field name="daily_cutoff" label={t("Scan window closes")} type="time" defaultValue={settings.daily_cutoff} />
         <Field
           name="grace_minutes"
-          label="Grace period (min)"
+          label={t("Grace period (min)")}
           type="number"
           defaultValue={String(settings.grace_minutes)}
         />
         <Field
           name="break_threshold_minutes"
-          label="Break threshold (min worked)"
+          label={t("Break threshold (min worked)")}
           type="number"
           defaultValue={String(settings.break_threshold_minutes)}
         />
         <Field
           name="break_deduction_minutes"
-          label="Break deduction (min)"
+          label={t("Break deduction (min)")}
           type="number"
           defaultValue={String(settings.break_deduction_minutes)}
         />
         <Field
           name="min_dwell_seconds"
-          label="Min seconds between scans"
+          label={t("Min seconds between scans")}
           type="number"
           defaultValue={String(settings.min_dwell_seconds)}
         />
+        <div className="space-y-2">
+          <Label htmlFor="max_daily_sessions">{t("Check-ins per day")}</Label>
+          <select
+            id="max_daily_sessions"
+            name="max_daily_sessions"
+            defaultValue={String(settings.max_daily_sessions ?? 1)}
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+          >
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground">
+            {t("How many check-in/check-out pairs each employee may record per day.")}
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="language">{t("Application language")}</Label>
+          <select
+            id="language"
+            name="language"
+            defaultValue={settings.language ?? "de"}
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+          >
+            {LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="theme">{t("Appearance")}</Label>
+          <select
+            id="theme"
+            name="theme"
+            defaultValue={settings.theme ?? "dark"}
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+          >
+            <option value="dark">{t("Dark")}</option>
+            <option value="light">{t("Light")}</option>
+          </select>
+        </div>
       </div>
 
       <div className="flex items-center gap-3 rounded-xl border border-border p-4">
@@ -151,12 +206,12 @@ function SettingsPage() {
           defaultChecked={settings.count_unapproved_overtime}
         />
         <Label htmlFor="count_unapproved_overtime" className="font-normal">
-          Count unapproved overtime in payroll totals
+          {t("Count unapproved overtime in payroll totals")}
         </Label>
       </div>
 
       <Button type="submit" disabled={mut.isPending}>
-        {mut.isPending ? "Saving…" : "Save settings"}
+        {mut.isPending ? t("Saving…") : t("Save settings")}
       </Button>
     </form>
   );
