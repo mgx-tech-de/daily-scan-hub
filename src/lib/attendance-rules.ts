@@ -221,6 +221,8 @@ export function computeSessions(sessions: Session[], s: AttendanceSettings): Day
   let gross = 0;
   let payableGross = 0;
   let lastOutMinutes = 0;
+  let firstPayableIn = Number.POSITIVE_INFINITY;
+  let lastPayableOut = 0;
 
   for (const seg of closed) {
     const inZ = zoned(seg.in, s.timezone);
@@ -232,10 +234,22 @@ export function computeSessions(sessions: Session[], s: AttendanceSettings): Day
     const payableOut = Math.min(outZ.minutes, shiftEnd);
     payableGross += Math.max(0, payableOut - payableIn);
     lastOutMinutes = Math.max(lastOutMinutes, outZ.minutes);
+    if (payableOut > payableIn) {
+      firstPayableIn = Math.min(firstPayableIn, payableIn);
+      lastPayableOut = Math.max(lastPayableOut, payableOut);
+    }
   }
 
+  // Time spent off the clock between sessions already counts as break, so the
+  // automatic deduction only tops it up to the required break length.
+  const span = Number.isFinite(firstPayableIn)
+    ? Math.max(0, lastPayableOut - firstPayableIn)
+    : 0;
+  const unpaidGap = Math.max(0, span - payableGross);
   const breakMinutes =
-    payableGross >= s.break_threshold_minutes ? s.break_deduction_minutes : 0;
+    payableGross >= s.break_threshold_minutes
+      ? Math.max(0, s.break_deduction_minutes - unpaidGap)
+      : 0;
   // A single day can never exceed the scheduled net maximum (e.g. 9 hours).
   const net = Math.min(expected, Math.max(0, payableGross - breakMinutes));
 
