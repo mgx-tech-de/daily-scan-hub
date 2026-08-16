@@ -15,10 +15,17 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { usePermissions, useSettings } from "@/hooks/use-chrono";
 import { supabase } from "@/integrations/supabase/client";
-import { decimalHours, formatMinutes, zoned } from "@/lib/attendance-rules";
+import { decimalHours, formatMinutes, pairSessions, zoned } from "@/lib/attendance-rules";
 import { manualCorrection } from "@/lib/chrono.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/records")({
@@ -27,7 +34,7 @@ export const Route = createFileRoute("/_authenticated/admin/records")({
       { title: "Attendance records — ChronoDesk" },
       {
         name: "description",
-        content: "Filter attendance by date range, correct entries and export payroll-ready CSV.",
+        content: "Filter attendance by employee, day or month, correct entries and export payroll-ready CSV.",
       },
       { property: "og:title", content: "Attendance records — ChronoDesk" },
       { property: "og:description", content: "Timesheets, corrections and CSV export." },
@@ -35,6 +42,8 @@ export const Route = createFileRoute("/_authenticated/admin/records")({
   }),
   component: RecordsPage,
 });
+
+type SessionRow = { in: string | null; out: string | null };
 
 type Row = {
   id: string;
@@ -50,45 +59,131 @@ type Row = {
   undertime_minutes: number;
   status: string;
   profiles: { first_name: string; last_name: string; employee_code: string | null } | null;
+  sessions: SessionRow[];
 };
 
-function isoDaysAgo(days: number) {
-  return new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function monthRange(month: string) {
+  const [y, m] = month.split("-").map(Number);
+  const last = new Date(Date.UTC(y!, m!, 0)).getUTCDate();
+  return { from: `${month}-01`, to: `${month}-${String(last).padStart(2, "0")}` };
+}
+
+function csvCell(v: unknown) {
+  return `"${String(v ?? "").replace(/"/g, '""')}"`;
+}
+
+function csvRow(values: unknown[]) {
+  return values.map(csvCell).join(",");
+}
+
+function downloadCsv(name: string, lines: string[]) {
+  const blob = new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function RecordsPage() {
   const qc = useQueryClient();
   const { data: settings } = useSettings();
   const correct = useServerFn(manualCorrection);
-  const [from, setFrom] = useState(isoDaysAgo(30));
-  const [to, setTo] = useState(isoDaysAgo(0));
+  const perms = usePermissions();
+
   const [editing, setEditing] = useState<Row | null>(null);
+  const [mode, setMode] = useState<"daily" | "monthly">("daily");
+  const [day, setDay] = useState(today());
+  const [month, setMonth] = useState(today().slice(0, 7));
+  const [employee, setEmployee] = useState<string>("all");
+
+  const { from, to } = mode === "daily" ? { from: day, to: day } : monthRange(month);
+  const monthlyGroup = mode === "monthly" && employee === "all";
+
+  const { data: staff } = useQuery({
+    queryKey: ["records-staff"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id,first_name,last_name,employee_code")
+        .order("first_name", { ascending: true });
+      return data ?? [];
+    },
+  });
 
   const { data } = useQuery({
-    queryKey: ["records", from, to],
+    queryKey: ["records", from, to, employee],
     refetchInterval: 10000,
     queryFn: async () => {
-      const { data: days } = await supabase
+      let dayQuery = supabase
         .from("attendance_days")
         .select("*")
         .gte("work_date", from)
-        .lte("work_date", to)
-        .order("work_date", { ascending: false });
+        .lte("work_date", to);
+      if (employee !== "all") dayQuery = dayQuery.eq("user_id", employee);
+      const { data: days } = await dayQuery.order("work_date", { ascending: false });
       const list = days ?? [];
       const ids = [...new Set(list.map((d) => d.user_id))];
+
       const { data: profiles } = ids.length
         ? await supabase
             .from("profiles")
             .select("id,first_name,last_name,employee_code")
             .in("id", ids)
         : { data: [] };
+
+      let eventQuery = supabase
+        .from("attendance_events")
+        .select("user_id,work_date,kind,effective_at")
+        .gte("work_date", from)
+        .lte("work_date", to);
+      if (employee !== "all") eventQuery = eventQuery.eq("user_id", employee);
+      const { data: events } = await eventQuery.order("effective_at", { ascending: true });
+
+      const grouped = new Map<string, Array<{ kind: string; effective_at: string }>>();
+      for (const e of events ?? []) {
+        const key = `${e.user_id}|${e.work_date}`;
+        const arr = grouped.get(key) ?? [];
+        arr.push({ kind: e.kind as string, effective_at: e.effective_at as string });
+        grouped.set(key, arr);
+      }
+      const sessionsByKey = new Map<string, SessionRow[]>();
+      for (const [key, evs] of grouped) {
+        sessionsByKey.set(
+          key,
+          pairSessions(evs).map((s) => ({
+            in: s.in ? s.in.toISOString() : null,
+            out: s.out ? s.out.toISOString() : null,
+          })),
+        );
+      }
+
       const byId = new Map((profiles ?? []).map((p) => [p.id, p]));
-      return list.map((d) => ({ ...d, profiles: byId.get(d.user_id) ?? null })) as unknown as Row[];
+      const rows = list.map((d) => ({
+        ...d,
+        profiles: byId.get(d.user_id) ?? null,
+        sessions: sessionsByKey.get(`${d.user_id}|${d.work_date}`) ?? [],
+      })) as unknown as Row[];
+      rows.sort((a, b) => {
+        const na = `${a.profiles?.first_name ?? ""} ${a.profiles?.last_name ?? ""}`;
+        const nb = `${b.profiles?.first_name ?? ""} ${b.profiles?.last_name ?? ""}`;
+        return na.localeCompare(nb) || b.work_date.localeCompare(a.work_date);
+      });
+      return rows;
     },
   });
 
-  const perms = usePermissions();
   const rows = data ?? [];
+  const orgName = (settings as { org_name?: string } | undefined)?.org_name ?? "ChronoDesk";
+  const tz = settings?.timezone ?? "Europe/Berlin";
+  const hm = (iso: string | null) => (iso ? zoned(new Date(iso), tz).hm : "—");
+  const sessionsOf = (r: Row) =>
+    r.sessions.length ? r.sessions : [{ in: r.check_in_at, out: r.check_out_at }];
 
   const fix = useMutation({
     mutationFn: (vars: {
@@ -107,125 +202,237 @@ function RecordsPage() {
   });
 
   function exportCsv() {
-    const header = [
-      "employee",
-      "code",
-      "date",
-      "check_in",
-      "check_out",
-      "gross_hours",
-      "break_minutes",
-      "net_hours",
-      "late_minutes",
-      "overtime_minutes",
-      "status",
+    const who =
+      employee === "all"
+        ? "All employees"
+        : (() => {
+            const p = staff?.find((s) => s.id === employee);
+            return p ? `${p.first_name} ${p.last_name}` : "Employee";
+          })();
+    const title = monthlyGroup
+      ? "Monthly totals per employee"
+      : mode === "monthly"
+        ? "Monthly attendance report"
+        : "Daily attendance report";
+
+    const head = [
+      csvRow([orgName]),
+      csvRow([title]),
+      csvRow(["Period", mode === "daily" ? day : month]),
+      csvRow(["Employees", who]),
+      csvRow(["Generated", new Date().toLocaleString()]),
+      "",
     ];
-    const lines = rows.map((r) =>
-      [
-        r.profiles ? `${r.profiles.first_name} ${r.profiles.last_name}` : "",
-        r.profiles?.employee_code ?? "",
-        r.work_date,
-        r.check_in_at && settings ? zoned(new Date(r.check_in_at), settings.timezone).hm : "",
-        r.check_out_at && settings ? zoned(new Date(r.check_out_at), settings.timezone).hm : "",
-        decimalHours(r.gross_minutes),
-        String(r.break_minutes),
-        decimalHours(r.net_minutes),
-        String(r.late_minutes),
-        String(r.overtime_minutes),
-        r.status,
-      ]
-        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-        .join(","),
-    );
-    const blob = new Blob([[header.join(","), ...lines].join("\n")], {
-      type: "text/csv;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `chronodesk-${from}_${to}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+
+    let body: string[];
+    let file: string;
+
+    if (monthlyGroup) {
+      const totals = new Map<string, { name: string; code: string; net: number; days: number }>();
+      for (const r of rows) {
+        const prev = totals.get(r.user_id) ?? {
+          name: r.profiles ? `${r.profiles.first_name} ${r.profiles.last_name}` : "Unknown",
+          code: r.profiles?.employee_code ?? "",
+          net: 0,
+          days: 0,
+        };
+        prev.net += r.net_minutes;
+        prev.days += r.net_minutes > 0 ? 1 : 0;
+        totals.set(r.user_id, prev);
+      }
+      body = [
+        csvRow(["Employee", "Code", "Days worked", "Total hours (hh:mm)", "Total hours (decimal)"]),
+        ...[...totals.values()]
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((t) => csvRow([t.name, t.code, t.days, formatMinutes(t.net), decimalHours(t.net)])),
+      ];
+      file = `${orgName}-monthly-totals-${month}.csv`;
+    } else {
+      body = [
+        csvRow([
+          "Employee",
+          "Code",
+          "Date",
+          "Session",
+          "Check in",
+          "Check out",
+          "Break (min)",
+          "Late (min)",
+          "Daily total (hh:mm)",
+          "Daily total (decimal)",
+        ]),
+      ];
+      let grand = 0;
+      for (const r of rows) {
+        grand += r.net_minutes;
+        const name = r.profiles ? `${r.profiles.first_name} ${r.profiles.last_name}` : "Unknown";
+        const code = r.profiles?.employee_code ?? "";
+        sessionsOf(r).forEach((s, i) => {
+          body.push(
+            csvRow([
+              name,
+              code,
+              r.work_date,
+              i + 1,
+              hm(s.in),
+              hm(s.out),
+              i === 0 ? r.break_minutes : "",
+              i === 0 ? r.late_minutes : "",
+              i === 0 ? formatMinutes(r.net_minutes) : "",
+              i === 0 ? decimalHours(r.net_minutes) : "",
+            ]),
+          );
+        });
+      }
+      body.push("");
+      body.push(
+        csvRow([
+          "Total",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          formatMinutes(grand),
+          decimalHours(grand),
+        ]),
+      );
+      file = `${orgName}-${mode === "daily" ? day : month}.csv`;
+    }
+
+    downloadCsv(file.replace(/\s+/g, "-"), [...head, ...body]);
   }
+
+  const totalNet = rows.reduce((sum, r) => sum + r.net_minutes, 0);
 
   return (
     <div className="panel overflow-hidden">
       <div className="flex flex-wrap items-end gap-3 border-b border-border px-5 py-4">
         <div className="space-y-1">
-          <Label htmlFor="from">From</Label>
-          <Input id="from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          <Label>Employee</Label>
+          <Select value={employee} onValueChange={setEmployee}>
+            <SelectTrigger className="w-56">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All employees</SelectItem>
+              {(staff ?? []).map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.first_name} {p.last_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-1">
-          <Label htmlFor="to">To</Label>
-          <Input id="to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          <Label>Period</Label>
+          <Select value={mode} onValueChange={(v) => setMode(v as "daily" | "monthly")}>
+            <SelectTrigger className="w-36">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="daily">Daily</SelectItem>
+              <SelectItem value="monthly">Monthly</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
+        {mode === "daily" ? (
+          <div className="space-y-1">
+            <Label htmlFor="day">Date</Label>
+            <Input id="day" type="date" value={day} onChange={(e) => setDay(e.target.value)} />
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <Label htmlFor="month">Month</Label>
+            <Input
+              id="month"
+              type="month"
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+            />
+          </div>
+        )}
         <Button
           variant="outline"
           className="ml-auto"
           onClick={exportCsv}
           disabled={!rows.length || !perms.can("records.export")}
         >
-          <Download className="mr-2 size-4" /> Export CSV
+          <Download className="mr-2 size-4" />
+          {monthlyGroup ? "Export monthly totals" : "Export CSV"}
         </Button>
       </div>
 
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Employee</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>In</TableHead>
-              <TableHead>Out</TableHead>
-              <TableHead>Net</TableHead>
-              <TableHead>Late</TableHead>
-              <TableHead>OT</TableHead>
-              <TableHead className="text-right">Fix</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((r) => (
-              <TableRow key={r.id}>
-                <TableCell className="font-medium">
-                  {r.profiles ? `${r.profiles.first_name} ${r.profiles.last_name}` : "Unknown"}
-                </TableCell>
-                <TableCell className="tabular">{r.work_date}</TableCell>
-                <TableCell className="tabular">
-                  {r.check_in_at && settings
-                    ? zoned(new Date(r.check_in_at), settings.timezone).hm
-                    : "—"}
-                </TableCell>
-                <TableCell className="tabular">
-                  {r.check_out_at && settings
-                    ? zoned(new Date(r.check_out_at), settings.timezone).hm
-                    : "—"}
-                </TableCell>
-                <TableCell className="tabular font-semibold">
-                  {formatMinutes(r.net_minutes)}
-                </TableCell>
-                <TableCell className="tabular">{r.late_minutes}m</TableCell>
-                <TableCell className="tabular">{formatMinutes(r.overtime_minutes)}</TableCell>
-                <TableCell className="text-right">
-                  {perms.can("records.correct") ? (
-                    <Button size="sm" variant="outline" onClick={() => setEditing(r)}>
-                      <PencilLine className="size-4" />
-                    </Button>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-            {rows.length === 0 && (
+      {monthlyGroup ? (
+        <MonthlyTotals rows={rows} />
+      ) : (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
-                  No records in this range.
-                </TableCell>
+                <TableHead>Employee</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Sessions</TableHead>
+                <TableHead>Net</TableHead>
+                <TableHead>Late</TableHead>
+                <TableHead className="text-right">Fix</TableHead>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+            </TableHeader>
+            <TableBody>
+              {rows.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell className="font-medium">
+                    {r.profiles ? `${r.profiles.first_name} ${r.profiles.last_name}` : "Unknown"}
+                  </TableCell>
+                  <TableCell className="tabular">{r.work_date}</TableCell>
+                  <TableCell className="tabular">
+                    <div className="flex flex-col gap-0.5">
+                      {sessionsOf(r).map((s, i) => (
+                        <span key={i} className="text-sm">
+                          {i + 1}. {hm(s.in)} → {hm(s.out)}
+                        </span>
+                      ))}
+                    </div>
+                  </TableCell>
+                  <TableCell className="tabular font-semibold">
+                    {formatMinutes(r.net_minutes)}
+                  </TableCell>
+                  <TableCell className="tabular">{r.late_minutes}m</TableCell>
+                  <TableCell className="text-right">
+                    {perms.can("records.correct") ? (
+                      <Button size="sm" variant="outline" onClick={() => setEditing(r)}>
+                        <PencilLine className="size-4" />
+                      </Button>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {rows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                    No records in this range.
+                  </TableCell>
+                </TableRow>
+              )}
+              {rows.length > 0 && (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-right font-medium">
+                    Total
+                  </TableCell>
+                  <TableCell className="tabular font-semibold">
+                    {formatMinutes(totalNet)}
+                  </TableCell>
+                  <TableCell colSpan={2} />
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       <Dialog open={!!editing} onOpenChange={(v) => !v && setEditing(null)}>
         <DialogContent>
@@ -272,6 +479,56 @@ function RecordsPage() {
           </form>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function MonthlyTotals({ rows }: { rows: Row[] }) {
+  const totals = new Map<string, { name: string; code: string; net: number; days: number }>();
+  for (const r of rows) {
+    const prev = totals.get(r.user_id) ?? {
+      name: r.profiles ? `${r.profiles.first_name} ${r.profiles.last_name}` : "Unknown",
+      code: r.profiles?.employee_code ?? "",
+      net: 0,
+      days: 0,
+    };
+    prev.net += r.net_minutes;
+    prev.days += r.net_minutes > 0 ? 1 : 0;
+    totals.set(r.user_id, prev);
+  }
+  const list = [...totals.values()].sort((a, b) => a.name.localeCompare(b.name));
+
+  return (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Employee</TableHead>
+            <TableHead>Code</TableHead>
+            <TableHead>Days worked</TableHead>
+            <TableHead>Total hours</TableHead>
+            <TableHead className="text-right">Decimal</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {list.map((t) => (
+            <TableRow key={t.name + t.code}>
+              <TableCell className="font-medium">{t.name}</TableCell>
+              <TableCell className="tabular">{t.code || "—"}</TableCell>
+              <TableCell className="tabular">{t.days}</TableCell>
+              <TableCell className="tabular font-semibold">{formatMinutes(t.net)}</TableCell>
+              <TableCell className="tabular text-right">{decimalHours(t.net)}</TableCell>
+            </TableRow>
+          ))}
+          {list.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
+                No records for this month.
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
     </div>
   );
 }
