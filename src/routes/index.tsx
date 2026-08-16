@@ -5,8 +5,10 @@ import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { LocaleControls } from "@/components/chrono/locale-controls";
 import { formatMinutes, zoned } from "@/lib/attendance-rules";
 import { getPublicKiosk, getRecentScans } from "@/lib/chrono.functions";
+import { useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -28,6 +30,7 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 function Index() {
+  const t = useT();
   const [png, setPng] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(30);
 
@@ -75,17 +78,22 @@ function Index() {
           <span className="font-display text-lg font-semibold tracking-tight">
             {data?.orgName ?? "ChronoDesk"}
           </span>
-          <Button asChild variant="ghost" size="sm" className="text-xs">
-            <Link to="/auth">Sign in</Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <LocaleControls compact />
+            <Button asChild variant="ghost" size="sm" className="text-xs">
+              <Link to="/auth">{t("Sign in")}</Link>
+            </Button>
+          </div>
         </header>
 
         <section className="mt-6 flex flex-col items-center text-center">
           <h1 className="font-display text-2xl font-bold md:text-3xl">
-            Scan to check in or out
+            {t("Scan to check in or out")}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {data ? `${data.workDate} · ${data.windowFrom}–${data.windowTo} · ${data.timezone}` : "Loading today's code…"}
+            {data
+              ? `${data.workDate} · ${data.windowFrom}–${data.windowTo} · ${data.timezone}`
+              : t("Loading today's code…")}
           </p>
 
           <div className="mt-6 rounded-2xl bg-white p-4">
@@ -100,7 +108,8 @@ function Index() {
             )}
           </div>
           <p className="tabular mt-3 text-sm text-muted-foreground">
-            New code in <span className="font-semibold text-foreground">{countdown}s</span>
+            {t("New code in")}{" "}
+            <span className="font-semibold text-foreground">{countdown}s</span>
           </p>
 
           <div className="mt-6 w-full" aria-live="polite">
@@ -122,21 +131,21 @@ function Index() {
                 <div className="min-w-0">
                   <p className="font-display text-lg font-semibold">{latest.name}</p>
                   <p className="text-sm text-muted-foreground">
-                    {latest.kind === "check_in" ? "Checked in" : "Checked out"} at{" "}
+                    {latest.kind === "check_in" ? t("Checked in") : t("Checked out")} ·{" "}
                     <span className="tabular">{zoned(new Date(latest.at), tz).hm}</span>
                     {latest.department ? ` · ${latest.department}` : ""}
                   </p>
                 </div>
                 <span className="tabular ml-auto text-right text-sm">
                   <span className="block text-xs uppercase tracking-wide text-muted-foreground">
-                    Net today
+                    {t("Net today")}
                   </span>
                   {formatMinutes(latest.netMinutes)}
                 </span>
               </article>
             ) : (
               <p className="text-sm text-muted-foreground">
-                No scans yet today — the next employee can scan now.
+                {t("No scans yet today — the next employee can scan now.")}
               </p>
             )}
 
@@ -146,7 +155,8 @@ function Index() {
                   <li key={s.id} className="flex justify-between gap-3 px-1">
                     <span className="truncate">{s.name}</span>
                     <span className="tabular">
-                      {s.kind === "check_in" ? "in" : "out"} · {zoned(new Date(s.at), tz).hm}
+                      {s.kind === "check_in" ? t("in") : t("out")} ·{" "}
+                      {zoned(new Date(s.at), tz).hm}
                     </span>
                   </li>
                 ))}
