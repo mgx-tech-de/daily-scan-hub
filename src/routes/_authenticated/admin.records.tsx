@@ -529,6 +529,14 @@ function RecordsPage() {
 }
 
 function MonthlyTotals({ rows }: { rows: Row[] }) {
+  return <TotalsTable rows={rows} label="Days worked" />;
+}
+
+function DailyTotals({ rows }: { rows: Row[] }) {
+  return <TotalsTable rows={rows} label="Sessions" daily />;
+}
+
+function TotalsTable({ rows, label, daily }: { rows: Row[]; label: string; daily?: boolean }) {
   const totals = new Map<string, { name: string; code: string; net: number; days: number }>();
   for (const r of rows) {
     const prev = totals.get(r.user_id) ?? {
@@ -538,7 +546,11 @@ function MonthlyTotals({ rows }: { rows: Row[] }) {
       days: 0,
     };
     prev.net += r.net_minutes;
-    prev.days += r.net_minutes > 0 ? 1 : 0;
+    prev.days += daily
+      ? Math.max(r.sessions.length, r.check_in_at ? 1 : 0)
+      : r.net_minutes > 0
+        ? 1
+        : 0;
     totals.set(r.user_id, prev);
   }
   const list = [...totals.values()].sort((a, b) => a.name.localeCompare(b.name));
@@ -550,7 +562,7 @@ function MonthlyTotals({ rows }: { rows: Row[] }) {
           <TableRow>
             <TableHead>Employee</TableHead>
             <TableHead>Code</TableHead>
-            <TableHead>Days worked</TableHead>
+            <TableHead>{label}</TableHead>
             <TableHead>Total hours</TableHead>
             <TableHead className="text-right">Decimal</TableHead>
           </TableRow>
