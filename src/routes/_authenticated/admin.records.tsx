@@ -225,14 +225,14 @@ function RecordsPage() {
           })();
     const title = monthlyGroup
       ? "Monthly totals per employee"
-      : mode === "monthly"
-        ? "Monthly attendance report"
-        : "Daily attendance report";
+      : dailyGroup
+        ? "Daily totals per employee"
+        : "Monthly attendance report";
 
     const head = [
       csvRow([orgName]),
       csvRow([title]),
-      csvRow(["Period", mode === "daily" ? day : month]),
+      csvRow(["Period", perEmployee ? month : mode === "daily" ? day : month]),
       csvRow(["Employees", who]),
       csvRow(["Generated", new Date().toLocaleString()]),
       "",
@@ -261,12 +261,37 @@ function RecordsPage() {
           .map((t) => csvRow([t.name, t.code, t.days, formatMinutes(t.net), decimalHours(t.net)])),
       ];
       file = `${orgName}-monthly-totals-${month}.csv`;
+    } else if (dailyGroup) {
+      body = [
+        csvRow(["Employee", "Code", "Date", "Day", "Total hours (hh:mm)", "Total hours (decimal)"]),
+        ...rows.map((r) =>
+          csvRow([
+            r.profiles ? `${r.profiles.first_name} ${r.profiles.last_name}` : "Unknown",
+            r.profiles?.employee_code ?? "",
+            r.work_date,
+            weekdayName(r.work_date),
+            formatMinutes(r.net_minutes),
+            decimalHours(r.net_minutes),
+          ]),
+        ),
+        "",
+        csvRow([
+          "Total",
+          "",
+          "",
+          "",
+          formatMinutes(rows.reduce((s, r) => s + r.net_minutes, 0)),
+          decimalHours(rows.reduce((s, r) => s + r.net_minutes, 0)),
+        ]),
+      ];
+      file = `${orgName}-daily-totals-${day}.csv`;
     } else {
       body = [
         csvRow([
           "Employee",
           "Code",
           "Date",
+          "Day",
           "Session",
           "Check in",
           "Check out",
@@ -287,6 +312,7 @@ function RecordsPage() {
               name,
               code,
               r.work_date,
+              weekdayName(r.work_date),
               i + 1,
               hm(s.in),
               hm(s.out),
@@ -309,11 +335,12 @@ function RecordsPage() {
           "",
           "",
           "",
+          "",
           formatMinutes(grand),
           decimalHours(grand),
         ]),
       );
-      file = `${orgName}-${mode === "daily" ? day : month}.csv`;
+      file = `${orgName}-${who}-${month}.csv`;
     }
 
     downloadCsv(file.replace(/\s+/g, "-"), [...head, ...body]);
