@@ -162,3 +162,79 @@ export function lateness(checkIn: Date, s: AttendanceSettings): number {
   const z = zoned(checkIn, s.timezone);
   return Math.max(0, z.minutes - parseHm(s.shift_start) - s.grace_minutes);
 }
+
+export type Session = { in: Date; out: Date | null };
+
+/**
+ * Multi-session day (R1, R3, R4, R8 extended): an employee may check in and
+ * out several times per day. Worked time is the sum of every closed session;
+ * the automatic break is deducted once, from the daily payable total.
+ */
+export function computeSessions(sessions: Session[], s: AttendanceSettings): DayTotals {
+  const shiftStart = parseHm(s.shift_start);
+  const shiftEnd = parseHm(s.shift_end);
+  const scheduled = shiftEnd - shiftStart;
+  const expected =
+    scheduled - (scheduled >= s.break_threshold_minutes ? s.break_deduction_minutes : 0);
+
+  const firstIn = sessions[0]?.in ?? null;
+  const closed = sessions.filter((x) => x.out) as Array<{ in: Date; out: Date }>;
+
+  if (!firstIn || closed.length === 0) {
+    return {
+      gross_minutes: 0,
+      break_minutes: 0,
+      net_minutes: 0,
+      late_minutes: firstIn ? lateness(firstIn, s) : 0,
+      overtime_minutes: 0,
+      undertime_minutes: 0,
+      expected_minutes: expected,
+    };
+  }
+
+  let gross = 0;
+  let payableGross = 0;
+  let lastOutMinutes = 0;
+
+  for (const seg of closed) {
+    const inZ = zoned(seg.in, s.timezone);
+    const outZ = zoned(seg.out, s.timezone);
+    gross += Math.max(0, Math.floor((seg.out.getTime() - seg.in.getTime()) / 60000));
+    const payableOut = s.count_unapproved_overtime
+      ? outZ.minutes
+      : Math.min(outZ.minutes, shiftEnd);
+    payableGross += Math.max(0, payableOut - inZ.minutes);
+    lastOutMinutes = Math.max(lastOutMinutes, outZ.minutes);
+  }
+
+  const breakMinutes =
+    payableGross >= s.break_threshold_minutes ? s.break_deduction_minutes : 0;
+  const net = Math.max(0, payableGross - breakMinutes);
+
+  return {
+    gross_minutes: gross,
+    break_minutes: breakMinutes,
+    net_minutes: net,
+    late_minutes: lateness(firstIn, s),
+    overtime_minutes: Math.max(0, lastOutMinutes - shiftEnd),
+    undertime_minutes: Math.max(0, expected - net),
+    expected_minutes: expected,
+  };
+}
+
+/** Pair an ordered event list into check-in / check-out sessions. */
+export function pairSessions(
+  events: Array<{ kind: string; effective_at: string }>,
+): Session[] {
+  const out: Session[] = [];
+  for (const e of events) {
+    const at = new Date(e.effective_at);
+    if (e.kind === "check_in") {
+      out.push({ in: at, out: null });
+    } else if (e.kind === "check_out") {
+      const open = [...out].reverse().find((sx) => sx.out === null);
+      if (open) open.out = at;
+    }
+  }
+  return out;
+}
