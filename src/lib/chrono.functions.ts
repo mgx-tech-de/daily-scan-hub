@@ -134,7 +134,11 @@ export const getPublicKiosk = createServerFn({ method: "GET" }).handler(async ()
 export const getOrgName = createServerFn({ method: "GET" }).handler(async () => {
   const { admin, getSettings } = await loadServer();
   const settings = await getSettings(admin);
-  return { orgName: (settings as { org_name?: string }).org_name ?? "ChronoDesk" };
+  return {
+    orgName: (settings as { org_name?: string }).org_name ?? "ChronoDesk",
+    language: settings.language ?? "de",
+    theme: settings.theme ?? "dark",
+  };
 });
 
 /** Public: whether the first-run setup is still available. */
@@ -503,6 +507,9 @@ export const saveSettings = createServerFn({ method: "POST" })
         break_deduction_minutes: z.number().int().min(0),
         count_unapproved_overtime: z.boolean(),
         min_dwell_seconds: z.number().int().min(0),
+        max_daily_sessions: z.number().int().min(1).max(12),
+        language: z.enum(["de", "en", "ar", "tr", "ru"]),
+        theme: z.enum(["dark", "light"]),
         org_unlock_code: z.string().optional(),
       })
       .parse(input),
