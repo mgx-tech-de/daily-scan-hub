@@ -38,6 +38,11 @@ export const DEFAULT_SETTINGS: AttendanceSettings = {
   max_daily_sessions: 1,
   language: "de",
   theme: "dark",
+  office_address: "",
+  office_lat: null,
+  office_lng: null,
+  geofence_radius_m: 150,
+  require_geofence: false,
 };
 
 /** Distance in metres between two GPS coordinates (haversine). */
