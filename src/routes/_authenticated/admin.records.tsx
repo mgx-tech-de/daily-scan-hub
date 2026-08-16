@@ -104,6 +104,8 @@ function RecordsPage() {
   const perms = usePermissions();
 
   const [editing, setEditing] = useState<Row | null>(null);
+  const [draft, setDraft] = useState<Array<{ in: string; out: string }>>([]);
+  const [reason, setReason] = useState("");
   const [mode, setMode] = useState<"daily" | "monthly">("daily");
   const [day, setDay] = useState(today());
   const [month, setMonth] = useState(today().slice(0, 7));
