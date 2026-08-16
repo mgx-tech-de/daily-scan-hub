@@ -102,8 +102,15 @@ function RecordsPage() {
   const [month, setMonth] = useState(today().slice(0, 7));
   const [employee, setEmployee] = useState<string>("all");
 
-  const { from, to } = mode === "daily" ? { from: day, to: day } : monthRange(month);
-  const monthlyGroup = mode === "monthly" && employee === "all";
+  const perEmployee = employee !== "all";
+  // A single employee is always shown as a full month of daily rows.
+  const { from, to } = perEmployee
+    ? monthRange(month)
+    : mode === "daily"
+      ? { from: day, to: day }
+      : monthRange(month);
+  const monthlyGroup = !perEmployee && mode === "monthly";
+  const dailyGroup = !perEmployee && mode === "daily";
 
   const { data: staff } = useQuery({
     queryKey: ["records-staff"],
