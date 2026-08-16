@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { clampCheckIn, parseHm, zoned } from "./attendance-rules";
+import { clampCheckIn, distanceMeters, parseHm, zoned } from "./attendance-rules";
 import { can, type Permission } from "./permissions";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
@@ -197,7 +197,15 @@ export const getRecentScans = createServerFn({ method: "GET" }).handler(async ()
 export const scanQr = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
-    z.object({ payload: z.string().min(4), clientTime: z.string().optional() }).parse(input),
+    z
+      .object({
+        payload: z.string().min(4),
+        clientTime: z.string().optional(),
+        lat: z.number().optional(),
+        lng: z.number().optional(),
+        accuracy: z.number().optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { admin, getSettings, ensureToken, verifyPayload, recomputeDay, audit } =
@@ -217,6 +225,37 @@ export const scanQr = createServerFn({ method: "POST" })
     const token = await ensureToken(admin, workDate);
     const check = await verifyPayload(token!.secret, data.payload, workDate);
     if (!check.ok) return { ok: false as const, message: check.reason! };
+
+    // Geofence: only allow scans made physically at the office.
+    const geo = settings as unknown as {
+      require_geofence?: boolean;
+      office_lat?: number | null;
+      office_lng?: number | null;
+      geofence_radius_m?: number;
+      office_address?: string;
+    };
+    if (geo.require_geofence) {
+      if (geo.office_lat == null || geo.office_lng == null) {
+        return {
+          ok: false as const,
+          message: "Location check is enabled but the office location is not set. Contact your administrator.",
+        };
+      }
+      if (typeof data.lat !== "number" || typeof data.lng !== "number") {
+        return {
+          ok: false as const,
+          message: "Enable GPS location in your browser to check in or out.",
+        };
+      }
+      const radius = Math.max(20, geo.geofence_radius_m ?? 150);
+      const distance = distanceMeters(data.lat, data.lng, geo.office_lat, geo.office_lng);
+      if (distance > radius + Math.min(data.accuracy ?? 0, 100)) {
+        return {
+          ok: false as const,
+          message: `You are about ${Math.round(distance)} m from the office — you must be within ${radius} m to scan.`,
+        };
+      }
+    }
 
     const { data: profile } = await admin
       .from("profiles")
@@ -510,6 +549,11 @@ export const saveSettings = createServerFn({ method: "POST" })
         max_daily_sessions: z.number().int().min(1).max(12),
         language: z.enum(["de", "en", "ar", "tr", "ru"]),
         theme: z.enum(["dark", "light"]),
+        office_address: z.string().default(""),
+        office_lat: z.number().nullable().default(null),
+        office_lng: z.number().nullable().default(null),
+        geofence_radius_m: z.number().int().min(20).max(5000).default(150),
+        require_geofence: z.boolean().default(false),
         org_unlock_code: z.string().optional(),
       })
       .parse(input),

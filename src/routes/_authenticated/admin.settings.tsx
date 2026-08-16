@@ -43,6 +43,31 @@ function SettingsPage() {
   const { t, setLang, setTheme } = useLocale();
   const [unlockCode, setUnlockCode] = useState("");
   const orgUnlocked = unlockCode.trim().length > 0;
+  const [coords, setCoords] = useState<{ lat: string; lng: string } | null>(null);
+  const [locating, setLocating] = useState(false);
+
+  function useCurrentLocation() {
+    if (!("geolocation" in navigator)) {
+      toast.error(t("This device cannot share GPS location."));
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoords({
+          lat: pos.coords.latitude.toFixed(6),
+          lng: pos.coords.longitude.toFixed(6),
+        });
+        setLocating(false);
+        toast.success(t("Location captured"));
+      },
+      () => {
+        setLocating(false);
+        toast.error(t("Allow GPS location to capture the office position."));
+      },
+      { enableHighAccuracy: true, timeout: 15000 },
+    );
+  }
 
   const mut = useMutation({
     mutationFn: (form: FormData) =>
@@ -62,6 +87,11 @@ function SettingsPage() {
           max_daily_sessions: Number(form.get("max_daily_sessions")),
           language: String(form.get("language")) as Lang,
           theme: String(form.get("theme")) as Theme,
+          office_address: String(form.get("office_address") ?? ""),
+          office_lat: form.get("office_lat") ? Number(form.get("office_lat")) : null,
+          office_lng: form.get("office_lng") ? Number(form.get("office_lng")) : null,
+          geofence_radius_m: Number(form.get("geofence_radius_m") || 150),
+          require_geofence: form.get("require_geofence") === "on",
           org_unlock_code: String(form.get("org_unlock_code") ?? ""),
         },
       }),
@@ -208,6 +238,76 @@ function SettingsPage() {
         <Label htmlFor="count_unapproved_overtime" className="font-normal">
           {t("Count unapproved overtime in payroll totals")}
         </Label>
+      </div>
+
+      <div className="space-y-4 rounded-xl border border-border p-4">
+        <div>
+          <h2 className="font-display text-sm font-semibold">{t("Office location (GPS)")}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {t(
+              "When enabled, employees can only scan the code while they are physically within the allowed radius of the office.",
+            )}
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="office_address">{t("Office address")}</Label>
+            <Input
+              id="office_address"
+              name="office_address"
+              defaultValue={settings.office_address ?? ""}
+              placeholder={t("Street, city, country")}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="office_lat">{t("Latitude")}</Label>
+            <Input
+              id="office_lat"
+              name="office_lat"
+              inputMode="decimal"
+              key={`lat-${coords?.lat ?? "d"}`}
+              defaultValue={coords?.lat ?? (settings.office_lat != null ? String(settings.office_lat) : "")}
+              placeholder="52.520008"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="office_lng">{t("Longitude")}</Label>
+            <Input
+              id="office_lng"
+              name="office_lng"
+              inputMode="decimal"
+              key={`lng-${coords?.lng ?? "d"}`}
+              defaultValue={coords?.lng ?? (settings.office_lng != null ? String(settings.office_lng) : "")}
+              placeholder="13.404954"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="geofence_radius_m">{t("Allowed radius (m)")}</Label>
+            <Input
+              id="geofence_radius_m"
+              name="geofence_radius_m"
+              type="number"
+              min={20}
+              max={5000}
+              defaultValue={String(settings.geofence_radius_m ?? 150)}
+            />
+          </div>
+          <div className="flex items-end">
+            <Button type="button" variant="outline" onClick={useCurrentLocation} disabled={locating}>
+              {locating ? t("Locating…") : t("Use my current location")}
+            </Button>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <Switch
+            id="require_geofence"
+            name="require_geofence"
+            defaultChecked={settings.require_geofence ?? false}
+          />
+          <Label htmlFor="require_geofence" className="font-normal">
+            {t("Only allow check-in/check-out at the office location")}
+          </Label>
+        </div>
       </div>
 
       <Button type="submit" disabled={mut.isPending}>
