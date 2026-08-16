@@ -76,7 +76,33 @@ function HomePage() {
     if (busy) return;
     setBusy(true);
     try {
-      const res = await scan({ data: { payload, clientTime: new Date().toISOString() } });
+      let coords: { lat?: number; lng?: number; accuracy?: number } = {};
+      if (settings?.require_geofence) {
+        if (!("geolocation" in navigator)) {
+          toast.error(t("This device cannot share GPS location."));
+          return;
+        }
+        try {
+          const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 15000,
+              maximumAge: 10000,
+            }),
+          );
+          coords = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+          };
+        } catch {
+          toast.error(t("Allow GPS location to check in or out."));
+          return;
+        }
+      }
+      const res = await scan({
+        data: { payload, clientTime: new Date().toISOString(), ...coords },
+      });
       if (!res.ok) {
         toast.error(res.message);
       } else {
@@ -101,6 +127,12 @@ function HomePage() {
               ? `${settings.qr_open}–${settings.daily_cutoff} · ${settings.max_daily_sessions ?? 1} ${t("sessions/day")}`
               : "Loading…"}
           </p>
+          {settings?.require_geofence && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t("GPS location required — you must be at the office to scan.")}
+              {settings.office_address ? ` (${settings.office_address})` : ""}
+            </p>
+          )}
           <div className="mt-4">
             <QrScanner onResult={handleResult} busy={busy} />
           </div>
