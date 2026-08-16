@@ -3,12 +3,15 @@ import { LogOut } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import { LocaleControls } from "@/components/chrono/locale-controls";
 import { usePermissions, useProfile, useSettings, useUser } from "@/hooks/use-chrono";
+import { useT } from "@/lib/i18n";
 import { ROLE_LABELS } from "@/lib/permissions";
 import { supabase } from "@/integrations/supabase/client";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
+  const t = useT();
   const { user } = useUser();
   const perms = usePermissions();
   const { data: profile } = useProfile(perms.userId);
@@ -38,11 +41,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
           <nav className="flex items-center gap-1 text-sm">
             <Button asChild variant="ghost" size="sm">
-              <Link to="/home">My day</Link>
+              <Link to="/home">{t("My day")}</Link>
             </Button>
             {canOpenAdmin && (
               <Button asChild variant="ghost" size="sm">
-                <Link to="/admin">Admin</Link>
+                <Link to="/admin">{t("Admin")}</Link>
               </Button>
             )}
           </nav>
@@ -51,7 +54,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               {profile ? `${profile.first_name} ${profile.last_name}` : (user?.email ?? "")}
               {perms.role ? ` · ${ROLE_LABELS[perms.role]}` : ""}
             </span>
-            <Button variant="outline" size="sm" onClick={signOut} aria-label="Sign out">
+            <LocaleControls compact />
+            <Button variant="outline" size="sm" onClick={signOut} aria-label={t("Sign out")}>
               <LogOut className="size-4" />
             </Button>
           </div>

@@ -2,6 +2,7 @@ import { Link, Outlet, createFileRoute } from "@tanstack/react-router";
 
 import { AppShell } from "@/components/chrono/app-shell";
 import { usePermissions } from "@/hooks/use-chrono";
+import { useT } from "@/lib/i18n";
 import type { Permission } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_authenticated/admin")({
@@ -24,11 +25,12 @@ const TABS = [
 
 function AdminLayout() {
   const perms = usePermissions();
+  const t = useT();
 
   if (perms.loading) {
     return (
       <AppShell>
-        <p className="text-sm text-muted-foreground">Checking permissions…</p>
+        <p className="text-sm text-muted-foreground">{t("Checking permissions…")}</p>
       </AppShell>
     );
   }
@@ -37,9 +39,9 @@ function AdminLayout() {
     return (
       <AppShell>
         <div className="panel p-6">
-          <h1 className="font-display text-lg font-semibold">Restricted area</h1>
+          <h1 className="font-display text-lg font-semibold">{t("Restricted area")}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Your account does not have administrator or manager access.
+            {t("Your account does not have administrator or manager access.")}
           </p>
         </div>
       </AppShell>
@@ -57,7 +59,7 @@ function AdminLayout() {
             activeProps={{ className: "bg-primary text-primary-foreground" }}
             className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
-            {tab.label}
+            {t(tab.label)}
           </Link>
         ))}
       </nav>
