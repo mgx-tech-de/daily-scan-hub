@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { KeyRound, UserPlus } from "lucide-react";
+import { KeyRound, Pencil, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -55,6 +55,7 @@ function EmployeesPage() {
   const setRole = useServerFn(setEmployeeRole);
   const [open, setOpen] = useState(false);
   const [resetFor, setResetFor] = useState<Profile | null>(null);
+  const [editFor, setEditFor] = useState<Profile | null>(null);
 
   const { data } = useQuery({
     queryKey: ["employees"],
@@ -123,6 +124,22 @@ function EmployeesPage() {
     onSuccess: () => {
       toast.success("Password updated");
       setResetFor(null);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const editMut = useMutation({
+    mutationFn: (vars: {
+      id: string;
+      first_name: string;
+      last_name: string;
+      email: string;
+      password?: string;
+    }) => update({ data: vars }),
+    onSuccess: () => {
+      toast.success("Employee updated");
+      setEditFor(null);
+      qc.invalidateQueries({ queryKey: ["employees"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -237,6 +254,16 @@ function EmployeesPage() {
                   {!perms.can("employees.manage") && (
                     <span className="text-sm text-muted-foreground">View only</span>
                   )}
+                  {perms.can("employees.manage") && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setEditFor(p)}
+                    aria-label={`Edit ${p.first_name}`}
+                  >
+                    <Pencil className="size-4" />
+                  </Button>
+                  )}
                   {perms.can("employees.reset_password") && (
                   <Button
                     size="sm"
@@ -274,6 +301,46 @@ function EmployeesPage() {
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={!!editFor} onOpenChange={(v) => !v && setEditFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit employee</DialogTitle>
+            <DialogDescription>Changes apply to the sign-in account immediately.</DialogDescription>
+          </DialogHeader>
+          {editFor && (
+            <form
+              key={editFor.id}
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const f = new FormData(e.currentTarget);
+                const pw = String(f.get("password") || "");
+                editMut.mutate({
+                  id: editFor.id,
+                  first_name: String(f.get("first_name")).trim(),
+                  last_name: String(f.get("last_name")).trim(),
+                  email: String(f.get("email")).trim(),
+                  password: pw || undefined,
+                });
+              }}
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <EditField name="first_name" label="First name" defaultValue={editFor.first_name} required />
+                <EditField name="last_name" label="Surname" defaultValue={editFor.last_name} required />
+              </div>
+              <EditField name="email" label="Email" type="email" defaultValue={editFor.email} required />
+              <div className="space-y-2">
+                <Label htmlFor="edit-password">New password (optional)</Label>
+                <Input id="edit-password" name="password" type="text" minLength={10} placeholder="Leave blank to keep current" />
+              </div>
+              <Button type="submit" className="w-full" disabled={editMut.isPending}>
+                {editMut.isPending ? "Saving…" : "Save changes"}
+              </Button>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!resetFor} onOpenChange={(v) => !v && setResetFor(null)}>
         <DialogContent>
@@ -321,6 +388,27 @@ function Field({
     <div className="space-y-2">
       <Label htmlFor={name}>{label}</Label>
       <Input id={name} name={name} type={type} required={required} minLength={minLength} />
+    </div>
+  );
+}
+
+function EditField({
+  name,
+  label,
+  type = "text",
+  defaultValue,
+  required,
+}: {
+  name: string;
+  label: string;
+  type?: string;
+  defaultValue?: string;
+  required?: boolean;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={`edit-${name}`}>{label}</Label>
+      <Input id={`edit-${name}`} name={name} type={type} defaultValue={defaultValue} required={required} />
     </div>
   );
 }

@@ -137,7 +137,7 @@ function RootComponent() {
       <LocaleProvider>
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <Outlet />
-        <Toaster richColors position="top-center" />
+        <Toaster richColors expand position="bottom-right" gap={10} visibleToasts={5} />
       </LocaleProvider>
     </QueryClientProvider>
   );
