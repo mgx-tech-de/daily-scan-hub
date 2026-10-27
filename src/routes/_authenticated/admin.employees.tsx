@@ -321,7 +321,7 @@ function EmployeesPage() {
                   first_name: String(f.get("first_name")).trim(),
                   last_name: String(f.get("last_name")).trim(),
                   email: String(f.get("email")).trim(),
-                  password: pw || undefined,
+                  ...(pw ? { password: pw } : {}),
                 });
               }}
             >
