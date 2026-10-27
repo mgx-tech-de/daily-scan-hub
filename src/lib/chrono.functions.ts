@@ -410,13 +410,28 @@ export const updateEmployee = createServerFn({ method: "POST" })
         hire_date: z.string().nullable().optional(),
         status: z.enum(["active", "suspended", "archived"]).optional(),
         notes: z.string().nullable().optional(),
+        email: z.string().trim().email().max(255).optional(),
+        password: z.string().min(10).max(128).optional(),
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     await requirePermission(context as never, "employees.manage");
     const { admin, audit } = await loadServer();
-    const { id, ...patch } = data;
+    const { id, password, ...patch } = data;
+    if (patch.email) patch.email = patch.email.toLowerCase();
+    if (patch.email || password) {
+      const { error: authErr } = await admin.auth.admin.updateUserById(id, {
+        ...(patch.email ? { email: patch.email, email_confirm: true } : {}),
+        ...(password ? { password } : {}),
+      });
+      if (authErr) {
+        if (/already|registered|exists/i.test(authErr.message)) {
+          throw new Error("This email is already used by another account.");
+        }
+        throw new Error(authErr.message);
+      }
+    }
     const clean = Object.fromEntries(
       Object.entries(patch).filter(([, v]) => v !== undefined),
     ) as Record<string, never>;
@@ -433,7 +448,7 @@ export const updateEmployee = createServerFn({ method: "POST" })
       action: "update_employee",
       entity: "profiles",
       entity_id: id,
-      payload: patch,
+      payload: { ...patch, password_changed: !!password },
     });
     return { ok: true };
   });
