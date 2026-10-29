@@ -16,6 +16,7 @@ export const PERMISSIONS = [
   "records.view",
   "records.export",
   "records.correct",
+  "records.delete",
   "qr.view",
   "qr.rotate",
   "settings.manage",

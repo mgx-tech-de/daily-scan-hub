@@ -14,6 +14,8 @@ import { getKiosk, rotateQr } from "@/lib/chrono.functions";
 export const Route = createFileRoute("/_authenticated/admin/qr")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       { title: "Daily check-in QR — ChronoDesk" },
       {
         name: "description",

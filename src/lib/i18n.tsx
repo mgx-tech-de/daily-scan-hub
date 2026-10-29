@@ -30,6 +30,17 @@ const THEME_KEY = "chrono.theme";
  * falls back to English instead of showing a raw key.
  */
 const de: Record<string, string> = {
+  "All employees": "Alle Mitarbeiter",
+  "Actions": "Aktionen",
+  "Delete day": "Tag löschen",
+  "Delete month": "Monat löschen",
+  "Delete records": "Aufzeichnungen löschen",
+  "Deleting…": "Wird gelöscht…",
+  "Records deleted": "Aufzeichnungen gelöscht",
+  "Cancel": "Abbrechen",
+  "Could not delete records. Please try again.": "Aufzeichnungen konnten nicht gelöscht werden. Bitte erneut versuchen.",
+  "All check-ins, check-outs and worked hours in this period will be permanently deleted. This cannot be undone.": "Alle Ein- und Ausstempelungen sowie Arbeitszeiten in diesem Zeitraum werden endgültig gelöscht. Dies kann nicht rückgängig gemacht werden.",
+
   "My day": "Mein Tag",
   Admin: "Verwaltung",
   "Sign out": "Abmelden",
@@ -120,6 +131,17 @@ const de: Record<string, string> = {
 const en: Record<string, string> = {};
 
 const ar: Record<string, string> = {
+  "All employees": "جميع الموظفين",
+  "Actions": "الإجراءات",
+  "Delete day": "حذف اليوم",
+  "Delete month": "حذف الشهر",
+  "Delete records": "حذف السجلات",
+  "Deleting…": "جارٍ الحذف…",
+  "Records deleted": "تم حذف السجلات",
+  "Cancel": "إلغاء",
+  "Could not delete records. Please try again.": "تعذر حذف السجلات. يرجى المحاولة مرة أخرى.",
+  "All check-ins, check-outs and worked hours in this period will be permanently deleted. This cannot be undone.": "سيتم حذف جميع سجلات الحضور والانصراف وساعات العمل في هذه الفترة نهائياً. لا يمكن التراجع عن ذلك.",
+
   "My day": "يومي",
   Admin: "الإدارة",
   "Sign out": "تسجيل الخروج",
@@ -207,6 +229,17 @@ const ar: Record<string, string> = {
 };
 
 const tr: Record<string, string> = {
+  "All employees": "Tüm çalışanlar",
+  "Actions": "İşlemler",
+  "Delete day": "Günü sil",
+  "Delete month": "Ayı sil",
+  "Delete records": "Kayıtları sil",
+  "Deleting…": "Siliniyor…",
+  "Records deleted": "Kayıtlar silindi",
+  "Cancel": "İptal",
+  "Could not delete records. Please try again.": "Kayıtlar silinemedi. Lütfen tekrar deneyin.",
+  "All check-ins, check-outs and worked hours in this period will be permanently deleted. This cannot be undone.": "Bu dönemdeki tüm girişler, çıkışlar ve çalışma saatleri kalıcı olarak silinecek. Bu işlem geri alınamaz.",
+
   "My day": "Günüm",
   Admin: "Yönetim",
   "Sign out": "Çıkış yap",
@@ -295,6 +328,17 @@ const tr: Record<string, string> = {
 };
 
 const ru: Record<string, string> = {
+  "All employees": "Все сотрудники",
+  "Actions": "Действия",
+  "Delete day": "Удалить день",
+  "Delete month": "Удалить месяц",
+  "Delete records": "Удалить записи",
+  "Deleting…": "Удаление…",
+  "Records deleted": "Записи удалены",
+  "Cancel": "Отмена",
+  "Could not delete records. Please try again.": "Не удалось удалить записи. Повторите попытку.",
+  "All check-ins, check-outs and worked hours in this period will be permanently deleted. This cannot be undone.": "Все отметки прихода, ухода и рабочие часы за этот период будут удалены навсегда. Это действие нельзя отменить.",
+
   "My day": "Мой день",
   Admin: "Админка",
   "Sign out": "Выйти",

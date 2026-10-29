@@ -310,6 +310,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      delete_attendance_records: {
+        Args: { p_employee?: string; p_from: string; p_to: string }
+        Returns: Json
+      }
       has_any_role: {
         Args: {
           _roles: Database["public"]["Enums"]["app_role"][]
