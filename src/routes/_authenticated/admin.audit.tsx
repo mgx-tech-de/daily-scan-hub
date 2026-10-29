@@ -8,6 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 export const Route = createFileRoute("/_authenticated/admin/audit")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       { title: "Audit log — ChronoDesk" },
       { name: "description", content: "Every administrative action recorded with actor and reason." },
       { property: "og:title", content: "Audit log — ChronoDesk" },

@@ -26,6 +26,8 @@ import { ROLE_LABELS, type AppRole } from "@/lib/permissions";
 export const Route = createFileRoute("/_authenticated/admin/employees")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       { title: "Employees — ChronoDesk" },
       { name: "description", content: "Create, edit, suspend and reset access for your workforce." },
       { property: "og:title", content: "Employees — ChronoDesk" },

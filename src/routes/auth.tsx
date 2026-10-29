@@ -14,6 +14,8 @@ import { adminExists, claimFirstAdmin, getOrgName } from "@/lib/chrono.functions
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       { title: "Sign in — ChronoDesk" },
       {
         name: "description",

@@ -11,6 +11,8 @@ import { useT } from "@/lib/i18n";
 export const Route = createFileRoute("/_authenticated/admin/")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       { title: "Live attendance board — ChronoDesk" },
       { name: "description", content: "Who is on site right now, with hours worked today." },
       { property: "og:title", content: "Live attendance board — ChronoDesk" },
