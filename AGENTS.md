@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- Attendance deletion uses an authenticated, administrator-checked database transaction to remove scan events and daily summaries together and retain an audit entry; this prevents partial deletion and stale totals.
