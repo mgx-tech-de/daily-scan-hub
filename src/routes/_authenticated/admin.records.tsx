@@ -6,7 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -482,7 +482,7 @@ function RecordsPage() {
                       <span className="text-sm text-muted-foreground">—</span>
                     )}
                     {perms.can("records.delete") && (
-                      <Tooltip>
+                      <TooltipProvider><Tooltip>
                         <TooltipTrigger asChild>
                           <Button size="sm" variant="outline" className="text-destructive"
                             aria-label={`${t("Delete day")} ${r.work_date}`} disabled={deletion.isPending}
@@ -491,7 +491,7 @@ function RecordsPage() {
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>{t("Delete day")}</TooltipContent>
-                      </Tooltip>
+                      </Tooltip></TooltipProvider>
                     )}
                     </div>
                   </TableCell>
