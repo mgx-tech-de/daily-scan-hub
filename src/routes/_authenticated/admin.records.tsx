@@ -208,7 +208,7 @@ function RecordsPage() {
     onSuccess: async () => {
       setDeleting(null);
       toast.success(t("Records deleted"));
-      await Promise.all(["records", "live-board", "my-days", "my-events", "recent-scans", "audit"].map(
+      await Promise.all(["records", "live-board", "my-days", "my-events", "public-scans", "audit"].map(
         (key) => qc.invalidateQueries({ queryKey: [key] }),
       ));
     },
