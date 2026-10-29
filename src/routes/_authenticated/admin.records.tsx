@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -26,7 +27,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { usePermissions, useSettings } from "@/hooks/use-chrono";
 import { supabase } from "@/integrations/supabase/client";
 import { decimalHours, formatMinutes, pairSessions, zoned } from "@/lib/attendance-rules";
-import { manualCorrection } from "@/lib/chrono.functions";
+import { deleteRecords, manualCorrection } from "@/lib/chrono.functions";
+import { useT } from "@/lib/i18n";
+import type { RecordDeletion } from "@/lib/record-deletion";
 
 export const Route = createFileRoute("/_authenticated/admin/records")({
   head: () => ({
@@ -38,6 +41,8 @@ export const Route = createFileRoute("/_authenticated/admin/records")({
       },
       { property: "og:title", content: "Attendance records — ChronoDesk" },
       { property: "og:description", content: "Timesheets, corrections and CSV export." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: RecordsPage,
@@ -98,9 +103,11 @@ function downloadCsv(name: string, lines: string[]) {
 }
 
 function RecordsPage() {
+  const t = useT();
   const qc = useQueryClient();
   const { data: settings } = useSettings();
   const correct = useServerFn(manualCorrection);
+  const removeRecords = useServerFn(deleteRecords);
   const perms = usePermissions();
 
   const [editing, setEditing] = useState<Row | null>(null);
@@ -110,6 +117,7 @@ function RecordsPage() {
   const [day, setDay] = useState(today());
   const [month, setMonth] = useState(today().slice(0, 7));
   const [employee, setEmployee] = useState<string>("all");
+  const [deleting, setDeleting] = useState<(RecordDeletion & { name: string }) | null>(null);
 
   const perEmployee = employee !== "all";
   // A single employee is always shown as a full month of daily rows.
@@ -195,6 +203,21 @@ function RecordsPage() {
   });
 
   const rows = data ?? [];
+  const deletion = useMutation({
+    mutationFn: (scope: RecordDeletion) => removeRecords({ data: scope }),
+    onSuccess: async () => {
+      setDeleting(null);
+      toast.success(t("Records deleted"));
+      await Promise.all(["records", "live-board", "my-days", "my-events", "recent-scans", "audit"].map(
+        (key) => qc.invalidateQueries({ queryKey: [key] }),
+      ));
+    },
+    onError: () => toast.error(t("Could not delete records. Please try again.")),
+  });
+  const employeeName = employee === "all" ? t("All employees") : (() => {
+    const person = staff?.find((p) => p.id === employee);
+    return person ? `${person.first_name} ${person.last_name}` : t("Employee");
+  })();
   const orgName = (settings as { org_name?: string } | undefined)?.org_name ?? "ChronoDesk";
   const tz = settings?.timezone ?? "Europe/Berlin";
   const hm = (iso: string | null) => (iso ? zoned(new Date(iso), tz).hm : "—");
@@ -402,6 +425,14 @@ function RecordsPage() {
           <Download className="mr-2 size-4" />
           {monthlyGroup ? "Export monthly totals" : dailyGroup ? "Export daily totals" : "Export CSV"}
         </Button>
+        {perms.can("records.delete") && (
+          <Button variant="destructive" disabled={!rows.length || deletion.isPending}
+            onClick={() => setDeleting({ employee, period: dailyGroup ? "daily" : "monthly",
+              value: dailyGroup ? day : month, name: employeeName })}>
+            <Trash2 className="mr-2 size-4" />
+            {t(dailyGroup ? "Delete day" : "Delete month")}
+          </Button>
+        )}
       </div>
 
       {monthlyGroup ? (
@@ -418,7 +449,7 @@ function RecordsPage() {
                 <TableHead>Sessions</TableHead>
                 <TableHead>Worked</TableHead>
                 <TableHead>Late</TableHead>
-                <TableHead className="text-right">Fix</TableHead>
+                <TableHead className="text-right">{t("Actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -442,6 +473,7 @@ function RecordsPage() {
                   </TableCell>
                   <TableCell className="tabular">{r.late_minutes}m</TableCell>
                   <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
                     {perms.can("records.correct") ? (
                       <Button size="sm" variant="outline" onClick={() => openEditor(r)}>
                         <PencilLine className="size-4" />
@@ -449,6 +481,19 @@ function RecordsPage() {
                     ) : (
                       <span className="text-sm text-muted-foreground">—</span>
                     )}
+                    {perms.can("records.delete") && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button size="sm" variant="outline" className="text-destructive"
+                            aria-label={`${t("Delete day")} ${r.work_date}`} disabled={deletion.isPending}
+                            onClick={() => setDeleting({ employee: r.user_id, period: "daily", value: r.work_date, name: employeeName })}>
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{t("Delete day")}</TooltipContent>
+                      </Tooltip>
+                    )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -474,6 +519,26 @@ function RecordsPage() {
           </Table>
         </div>
       )}
+
+      <Dialog open={!!deleting} onOpenChange={(open) => { if (!open && !deletion.isPending) setDeleting(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t(deleting?.period === "monthly" ? "Delete month" : "Delete day")}</DialogTitle>
+            <DialogDescription>
+              {deleting?.name} · {deleting?.value}<br />
+              {t("All check-ins, check-outs and worked hours in this period will be permanently deleted. This cannot be undone.")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="outline" disabled={deletion.isPending} onClick={() => setDeleting(null)}>{t("Cancel")}</Button>
+            <Button variant="destructive" disabled={deletion.isPending} onClick={() => {
+              if (deleting) deletion.mutate({ employee: deleting.employee, period: deleting.period, value: deleting.value });
+            }}>
+              <Trash2 className="mr-2 size-4" />{t(deletion.isPending ? "Deleting…" : "Delete records")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!editing} onOpenChange={(v) => !v && setEditing(null)}>
         <DialogContent>

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { clampCheckIn, distanceMeters, parseHm, zoned } from "./attendance-rules";
 import { can, type Permission } from "./permissions";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { deletionRange, recordDeletionSchema } from "./record-deletion";
 
 async function loadServer() {
   const [{ supabaseAdmin }, helpers] = await Promise.all([
@@ -591,6 +592,21 @@ export const manualCorrection = createServerFn({ method: "POST" })
       payload: { before: before.data, after: day },
     });
     return { ok: true };
+  });
+
+export const deleteRecords = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => recordDeletionSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await requirePermission(context as never, "records.delete");
+    const { from, to } = deletionRange(data);
+    const { data: result, error } = await context.supabase.rpc("delete_attendance_records", {
+      p_from: from,
+      p_to: to,
+      ...(data.employee !== "all" ? { p_employee: data.employee } : {}),
+    });
+    if (error) throw new Error("Could not delete records. Please try again.");
+    return result;
   });
 
 export const saveSettings = createServerFn({ method: "POST" })
